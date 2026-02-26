@@ -1,0 +1,32 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {
+      colors: {
+        primary: {
+          DEFAULT: '#1337ec',
+          dark: '#0f2bbd',
+          light: '#e7ebfd',
+        },
+        secondary: '#f9f506',
+        success: '#36e27b',
+        background: '#ffffff',
+        surface: '#f8fafc',
+      },
+      fontFamily: {
+        sans: ['Inter', 'sans-serif'],
+      },
+      borderRadius: {
+        'sm': '4px',
+        'md': '8px',
+        'lg': '12px',
+        'full': '9999px',
+      }
+    },
+  },
+  plugins: [],
+}
