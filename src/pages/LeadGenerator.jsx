@@ -21,7 +21,7 @@ const LeadGenerator = () => {
         area: '',
         count: ''
     });
-    const { adminToken } = useContext(AppContext);
+    const { adminToken } = useContext(AppContext); // get admin token from context
 
     const handleInputChange = (e) => { // handle form input change
         const { name, value } = e.target; // get name and value from input

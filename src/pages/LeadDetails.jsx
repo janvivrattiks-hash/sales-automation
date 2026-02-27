@@ -22,9 +22,9 @@ const LeadDetails = () => {
     const [leadData, setLeadData] = useState(null);
 
     useEffect(() => {
-        console.log("Lead Details Location State:", location.state); // log the location state
-        if (location.state?.results) { // check if results are present
-            setLeadData({ // set lead data
+        console.log("Lead Details Location State:", location.state);
+        if (location.state?.results) {
+            setLeadData({
                 leads: location.state.results,
                 ...(location.state.queryInfo || {})
             });
@@ -32,16 +32,14 @@ const LeadDetails = () => {
         } else {
             setLoading(false);
         }
-    }, [location.state]); // log the location state
-
-
+    }, [location.state]);
 
     // Extract properties safely from leadData
-    const queryValue = leadData?.query || 'N/A'; // get query value
-    const cityValue = leadData?.city || 'N/A'; // get city value
-    const areaValue = leadData?.area || 'N/A'; // get area value
-    const leads = leadData?.leads || []; // get leads
-    const totalLeadsCount = leads.length; // get total leads count
+    const queryValue = leadData?.query || 'N/A';
+    const cityValue = leadData?.city || 'N/A';
+    const areaValue = leadData?.area || 'N/A';
+    const leads = leadData?.leads || [];
+    const totalLeadsCount = leads.length;
 
     const stats = [
         { label: 'SEARCH QUERY', value: queryValue },
@@ -50,7 +48,7 @@ const LeadDetails = () => {
         { label: 'TOTAL LEADS', value: totalLeadsCount.toString(), icon: Users },
     ];
 
-    if (loading) { // show loading
+    if (loading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 py-20">
                 <Loader2 size={48} className="animate-spin mb-4 text-primary" />
@@ -59,7 +57,7 @@ const LeadDetails = () => {
         );
     }
 
-    if (!leadData && !loading) { // show no data found message if no data is present
+    if (!leadData && !loading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 space-y-6 py-20">
                 <div className="bg-gray-50 p-6 rounded-full">
@@ -76,7 +74,7 @@ const LeadDetails = () => {
         );
     }
 
-    return ( // render lead details page 
+    return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-32">
             {/* Breadcrumbs */}
             <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">
