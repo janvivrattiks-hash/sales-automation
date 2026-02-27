@@ -17,19 +17,14 @@ import Card from '../components/ui/Card';
 
 const LeadDetails = () => {
     const navigate = useNavigate();
-    const { id } = useParams();
     const location = useLocation();
     const [loading, setLoading] = useState(!location.state);
-    const [leadData, setLeadData] = useState(location.state?.results ? {
-        leads: location.state.results,
-        ...(location.state.queryInfo || {})
-    } : null);
-    const [error, setError] = useState(null);
+    const [leadData, setLeadData] = useState(null);
 
     useEffect(() => {
-        console.log("Lead Details Location State:", location.state);
-        if (location.state?.results) {
-            setLeadData({
+        console.log("Lead Details Location State:", location.state); // log the location state
+        if (location.state?.results) { // check if results are present
+            setLeadData({ // set lead data
                 leads: location.state.results,
                 ...(location.state.queryInfo || {})
             });
@@ -37,55 +32,51 @@ const LeadDetails = () => {
         } else {
             setLoading(false);
         }
-    }, [location.state]);
+    }, [location.state]); // log the location state
+
+
 
     // Extract properties safely from leadData
-    const queryValue = leadData?.query || 'N/A';
-    const cityValue = leadData?.city || 'N/A';
-    const areaValue = leadData?.area || 'N/A';
-    const totalLeads = leadData?.totalLeads || 0;
+    const queryValue = leadData?.query || 'N/A'; // get query value
+    const cityValue = leadData?.city || 'N/A'; // get city value
+    const areaValue = leadData?.area || 'N/A'; // get area value
+    const leads = leadData?.leads || []; // get leads
+    const totalLeadsCount = leads.length; // get total leads count
 
-    const stats = useState([
+    const stats = [
         { label: 'SEARCH QUERY', value: queryValue },
         { label: 'CITY', value: cityValue },
         { label: 'AREA', value: areaValue },
-        { label: 'TOTAL LEADS', value: totalLeads?.toString() || '0', icon: Users },
-    ]);
+        { label: 'TOTAL LEADS', value: totalLeadsCount.toString(), icon: Users },
+    ];
 
-    const leads = useState([
-        { id: 1, BusinessName: "Black Bear Diner Katy", MobileNumber: "(281) 574-7902", rating: 4.5, Email: "[EMAIL_ADDRESS]", Status: "New", Action: "View" },
-        { id: 2, BusinessName: "Aunt Bill's Soul Food Cafe", MobileNumber: "(281) 574-7902", rating: 4.5, Email: "[EMAIL_ADDRESS]", Status: "New", Action: "View" },
-    ])
+    if (loading) { // show loading
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 py-20">
+                <Loader2 size={48} className="animate-spin mb-4 text-primary" />
+                <p className="font-medium">Loading search results...</p>
+            </div>
+        );
+    }
 
-    // const leads = leadData?.leads || [];
+    if (!leadData && !loading) { // show no data found message if no data is present
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 space-y-6 py-20">
+                <div className="bg-gray-50 p-6 rounded-full">
+                    <Search size={48} className="text-gray-300" />
+                </div>
+                <div className="text-center">
+                    <p className="text-lg font-bold text-gray-900">No Search Data Found</p>
+                    <p className="text-sm text-gray-500 mt-1">Please generate leads from the generator page first.</p>
+                </div>
+                <Button onClick={() => navigate('/lead-generator')} className="px-8">
+                    Go to Generator
+                </Button>
+            </div>
+        );
+    }
 
-    // if (loading) {
-    //     return (
-    //         <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 py-20">
-    //             <Loader2 size={48} className="animate-spin mb-4 text-primary" />
-    //             <p className="font-medium">Loading search results...</p>
-    //         </div>
-    //     );
-    // }
-
-    // if (!leadData && !loading) {
-    //     return (
-    //         <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 space-y-6 py-20">
-    //             <div className="bg-gray-50 p-6 rounded-full">
-    //                 <Search size={48} className="text-gray-300" />
-    //             </div>
-    //             <div className="text-center">
-    //                 <p className="text-lg font-bold text-gray-900">No Search Data Found</p>
-    //                 <p className="text-sm text-gray-500 mt-1">Please generate leads from the generator page first.</p>
-    //             </div>
-    //             <Button onClick={() => navigate('/lead-generator')} className="px-8">
-    //                 Go to Generator
-    //             </Button>
-    //         </div>
-    //     );
-    // }
-
-    return (
+    return ( // render lead details page 
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-32">
             {/* Breadcrumbs */}
             <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">
@@ -140,16 +131,16 @@ const LeadDetails = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {leads.map((lead) => (
-                                <tr key={lead.id} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors">
+                            {leads.map((lead, index) => (
+                                <tr key={lead.id || index} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors">
                                     <td className="px-8 py-6">
-                                        <span className="font-bold text-gray-900">{lead.BusinessName}</span>
+                                        <span className="font-bold text-gray-900">{lead.name || lead.BusinessName || 'N/A'}</span>
                                     </td>
                                     <td className="px-8 py-6">
-                                        <span className="text-xs font-medium text-gray-500">{lead.MobileNumber}</span>
+                                        <span className="text-xs font-medium text-gray-500">{lead.phone || lead.MobileNumber || 'N/A'}</span>
                                     </td>
                                     <td className="px-8 py-6">
-                                        <span className="text-sm text-gray-600">{lead.email}</span>
+                                        <span className="text-sm text-gray-600">{lead.email || 'N/A'}</span>
                                     </td>
                                     <td className="px-8 py-6">
                                         <div className="flex items-center gap-0.5">
@@ -166,7 +157,7 @@ const LeadDetails = () => {
                                     <td className="px-8 py-6">
                                         <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${lead.status === 'Active' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'
                                             }`}>
-                                            {lead.status}
+                                            {lead.status || 'New'}
                                         </span>
                                     </td>
                                     <td className="px-8 py-6 text-right">
@@ -181,8 +172,6 @@ const LeadDetails = () => {
                                     </td>
                                 </tr>
                             ))}
-
-
                         </tbody>
                     </table>
                 </div>
@@ -190,7 +179,7 @@ const LeadDetails = () => {
                 {leads.length > 0 && (
                     <div className="px-8 py-5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between bg-white/50 gap-4">
                         <p className="text-xs font-bold text-gray-400">
-                            Showing <span className="text-gray-900">1</span> to <span className="text-gray-900">{leads.length}</span> of <span className="text-gray-900">{leadData.totalLeads || leads.length}</span> results
+                            Showing <span className="text-gray-900">1</span> to <span className="text-gray-900">{leads.length}</span> of <span className="text-gray-900">{leads.length}</span> results
                         </p>
                         <div className="flex items-center gap-2">
                             <Button variant="outline" size="sm" className="px-4 text-xs font-bold disabled:opacity-50" disabled>

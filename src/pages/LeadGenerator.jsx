@@ -28,24 +28,25 @@ const LeadGenerator = () => {
         setFormData((prev) => ({ ...prev, [name]: value })); // update form data
     };
 
-    const handleGenerateLeads = (e) => { // handle generate leads
+    const handleGenerateLeads = async (e) => { // handle generate leads
         e.preventDefault(); // prevent default form submission
         console.log("form data", formData); // log form data
 
         // call API to add lead
-        const response_data = Api.addLead(formData, adminToken);
+        setLoading(true); // show loading
+        const response_data = await Api.addLead(formData, adminToken);
         console.log("response data", response_data);
 
         if (response_data) {
-            setLoading(true); // show loading
             toast.success("Lead generated successfully"); // show success message
             const queryInfo = { // store query info
-                location: formData.city,
-                niche: formData.query,
-                limit: formData.count,
+                query: formData.query,
+                city: formData.city,
+                area: formData.area,
+                count: formData.count,
             };
             setFormData({ query: '', city: '', area: '', count: '' }); // reset form data
-            navigate('/lead-details'); // redirect with data
+            navigate('/lead-details', { state: { results: response_data, queryInfo } }); // redirect with data
         } else {
             setError("Failed to generate lead"); // show error message
             setLoading(false); // hide loading
