@@ -40,13 +40,12 @@ const LeadGenerator = () => {
             setLoading(true); // show loading
             toast.success("Lead generated successfully"); // show success message
             const queryInfo = { // store query info
-                query: formData.query,
-                city: formData.city,
-                area: formData.area,
-                totalLeads: response_data.length
+                location: formData.city,
+                niche: formData.query,
+                limit: formData.count,
             };
             setFormData({ query: '', city: '', area: '', count: '' }); // reset form data
-            navigate('/lead-details', { state: { results: response_data, queryInfo } }); // redirect with data
+            navigate('/lead-details'); // redirect with data
         } else {
             setError("Failed to generate lead"); // show error message
             setLoading(false); // hide loading

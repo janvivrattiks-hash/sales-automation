@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, UserPlus, Target, TrendingUp, MoreVertical, ExternalLink, Plus, Eye, Trash2 } from 'lucide-react';
+import { Users, UserPlus, Target, TrendingUp, Briefcase, DollarSign, ExternalLink, Plus, Eye, Trash2 } from 'lucide-react';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     PieChart, Pie, Cell, Legend
@@ -39,8 +39,22 @@ const Dashboard = () => {
 
     useEffect(() => {
         const fetchData = async () => {
-            // const statsData = await apiClient.getStats();
-            // const leadsData = await apiClient.getLeads();
+            // Mock data for initial display
+            const statsData = {
+                totalLeads: '5,234',
+                activeCampaigns: '12',
+                conversionRate: '4.8%',
+                revenuePipeline: '$1.2M'
+            };
+            const leadsData = [
+                { id: 1, company: 'TechFlow Solutions', name: 'John Smith', email: 'john@techflow.com', website: 'techflow.com', rating: 4, status: 'New' },
+                { id: 2, company: 'Bright Spark Inc', name: 'Sarah Jones', email: 'sarah@brightspark.io', website: 'brightspark.io', rating: 5, status: 'Contacted' },
+                { id: 3, company: 'Global Logistics', name: 'Mike Brown', email: 'mike@globallog.com', website: 'globallogistics.com', rating: 3, status: 'In Review' },
+                { id: 4, company: 'Cloud Nine Systems', name: 'Emily Davis', email: 'emily@cloudnine.com', website: 'cloudnine.com', rating: 4, status: 'Qualified' },
+                { id: 5, company: 'Eco Friendly Co', name: 'David Wilson', email: 'david@ecofriendly.co', website: 'ecofriendly.co', rating: 2, status: 'New' },
+                { id: 6, company: 'Swift Delivery', name: 'Lisa Ray', email: 'lisa@swiftdelay.com', website: 'swiftdelay.com', rating: 4, status: 'Contacted' },
+            ];
+
             setStats(statsData);
             setLeads(leadsData);
             setLoading(false);
@@ -62,8 +76,8 @@ const Dashboard = () => {
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
-                    <p className="text-gray-500 text-sm mt-1">Welcome back, here's what's happening today.</p>
+                    <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+                    <p className="text-gray-500 text-sm mt-1">Manage your lead pipeline and sales performance.</p>
                 </div>
                 <Button
                     className="shrink-0 flex items-center gap-2"
@@ -76,14 +90,14 @@ const Dashboard = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard title="Total Leads" value={stats.totalLeads} trend="+12.5%" trendUp={true} icon={Users} />
-                <StatCard title="New Leads" value={stats.newLeads} trend="+5.2%" trendUp={true} icon={UserPlus} />
-                <StatCard title="Opportunities" value={stats.opportunities} trend="-2.1%" trendUp={false} icon={Target} />
-                <StatCard title="Conv. Rate" value={stats.conversionRate} trend="+0.8%" trendUp={true} icon={TrendingUp} />
+                <StatCard title="Active Campaigns" value={stats.activeCampaigns} trend="+2 new" trendUp={true} icon={Briefcase} />
+                <StatCard title="Conversion Rate" value={stats.conversionRate} trend="+0.8%" trendUp={true} icon={TrendingUp} />
+                <StatCard title="Revenue Pipeline" value={stats.revenuePipeline} trend="+15.3%" trendUp={true} icon={DollarSign} />
             </div>
 
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <Card title="Lead Trends" subtitle="Daily lead acquisition" className="lg:col-span-2">
+                <Card title="Lead Growth" subtitle="Daily lead acquisition trends" className="lg:col-span-2">
                     <div className="h-80 w-full pt-4">
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={lineData}>
@@ -116,7 +130,7 @@ const Dashboard = () => {
                     </div>
                 </Card>
 
-                <Card title="Source Distribution" subtitle="Lead acquisition by platform">
+                <Card title="Lead Status" subtitle="Leads distribution by status">
                     <div className="h-80 w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
@@ -144,7 +158,7 @@ const Dashboard = () => {
             <div className="grid grid-cols-1 gap-8">
                 <Card
                     title="Recent Leads"
-                    subtitle="Top 5 most recent prospects"
+                    subtitle="Last entries in the database"
                     className="w-full"
                 >
                     <div className="overflow-x-auto">

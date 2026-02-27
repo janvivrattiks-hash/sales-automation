@@ -45,40 +45,45 @@ const LeadDetails = () => {
     const areaValue = leadData?.area || 'N/A';
     const totalLeads = leadData?.totalLeads || 0;
 
-    const stats = [
+    const stats = useState([
         { label: 'SEARCH QUERY', value: queryValue },
         { label: 'CITY', value: cityValue },
         { label: 'AREA', value: areaValue },
         { label: 'TOTAL LEADS', value: totalLeads?.toString() || '0', icon: Users },
-    ];
+    ]);
 
-    const leads = leadData?.leads || [];
+    const leads = useState([
+        { id: 1, BusinessName: "Black Bear Diner Katy", MobileNumber: "(281) 574-7902", rating: 4.5, Email: "[EMAIL_ADDRESS]", Status: "New", Action: "View" },
+        { id: 2, BusinessName: "Aunt Bill's Soul Food Cafe", MobileNumber: "(281) 574-7902", rating: 4.5, Email: "[EMAIL_ADDRESS]", Status: "New", Action: "View" },
+    ])
 
-    if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 py-20">
-                <Loader2 size={48} className="animate-spin mb-4 text-primary" />
-                <p className="font-medium">Loading search results...</p>
-            </div>
-        );
-    }
+    // const leads = leadData?.leads || [];
 
-    if (!leadData && !loading) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 space-y-6 py-20">
-                <div className="bg-gray-50 p-6 rounded-full">
-                    <Search size={48} className="text-gray-300" />
-                </div>
-                <div className="text-center">
-                    <p className="text-lg font-bold text-gray-900">No Search Data Found</p>
-                    <p className="text-sm text-gray-500 mt-1">Please generate leads from the generator page first.</p>
-                </div>
-                <Button onClick={() => navigate('/lead-generator')} className="px-8">
-                    Go to Generator
-                </Button>
-            </div>
-        );
-    }
+    // if (loading) {
+    //     return (
+    //         <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 py-20">
+    //             <Loader2 size={48} className="animate-spin mb-4 text-primary" />
+    //             <p className="font-medium">Loading search results...</p>
+    //         </div>
+    //     );
+    // }
+
+    // if (!leadData && !loading) {
+    //     return (
+    //         <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 space-y-6 py-20">
+    //             <div className="bg-gray-50 p-6 rounded-full">
+    //                 <Search size={48} className="text-gray-300" />
+    //             </div>
+    //             <div className="text-center">
+    //                 <p className="text-lg font-bold text-gray-900">No Search Data Found</p>
+    //                 <p className="text-sm text-gray-500 mt-1">Please generate leads from the generator page first.</p>
+    //             </div>
+    //             <Button onClick={() => navigate('/lead-generator')} className="px-8">
+    //                 Go to Generator
+    //             </Button>
+    //         </div>
+    //     );
+    // }
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-32">
@@ -135,55 +140,49 @@ const LeadDetails = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {leads.length > 0 ? (
-                                leads.map((lead, index) => (
-                                    <tr key={lead.id || index} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors">
-                                        <td className="px-8 py-6">
-                                            <span className="font-bold text-gray-900">{lead.title || lead.name || 'N/A'}</span>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <span className="text-xs font-medium text-gray-500">{lead.phone || lead.mobile || 'N/A'}</span>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <span className="text-sm text-gray-600">{lead.email || 'N/A'}</span>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <div className="flex items-center gap-0.5">
-                                                {[...Array(5)].map((_, i) => (
-                                                    <Star
-                                                        key={i}
-                                                        size={14}
-                                                        className={i < (lead.rating || 0) ? 'text-yellow-400' : 'text-gray-200'}
-                                                        fill={i < (lead.rating || 0) ? 'currentColor' : 'none'}
-                                                    />
-                                                ))}
-                                            </div>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${lead.status === 'Active' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'
-                                                }`}>
-                                                {lead.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-8 py-6 text-right">
-                                            <div className="flex items-center justify-end gap-4">
-                                                <button className="text-gray-400 hover:text-primary transition-colors">
-                                                    <Eye size={18} />
-                                                </button>
-                                                <button className="text-gray-400 hover:text-red-500 transition-colors">
-                                                    <Trash size={18} />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr>
-                                    <td colSpan="6" className="px-8 py-10 text-center text-gray-400">
-                                        No leads found for this search.
+                            {leads.map((lead) => (
+                                <tr key={lead.id} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors">
+                                    <td className="px-8 py-6">
+                                        <span className="font-bold text-gray-900">{lead.BusinessName}</span>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <span className="text-xs font-medium text-gray-500">{lead.MobileNumber}</span>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <span className="text-sm text-gray-600">{lead.email}</span>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <div className="flex items-center gap-0.5">
+                                            {[...Array(5)].map((_, i) => (
+                                                <Star
+                                                    key={i}
+                                                    size={14}
+                                                    className={i < (lead.rating || 0) ? 'text-yellow-400' : 'text-gray-200'}
+                                                    fill={i < (lead.rating || 0) ? 'currentColor' : 'none'}
+                                                />
+                                            ))}
+                                        </div>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${lead.status === 'Active' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'
+                                            }`}>
+                                            {lead.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-8 py-6 text-right">
+                                        <div className="flex items-center justify-end gap-4">
+                                            <button className="text-gray-400 hover:text-primary transition-colors">
+                                                <Eye size={18} />
+                                            </button>
+                                            <button className="text-gray-400 hover:text-red-500 transition-colors">
+                                                <Trash size={18} />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
-                            )}
+                            ))}
+
+
                         </tbody>
                     </table>
                 </div>
