@@ -41,11 +41,18 @@ export default {
     addLead: async (data, token) => { // add lead api
         try { // try to add lead
             console.log("Lead Generation Data", data); // log the data
+            console.log("Token:", token ? "Token exists" : "Token is missing"); // log token status
+            
+            if (!token) {
+                toast.error("Authentication token is missing. Please login again.");
+                return null;
+            }
+            
             const res = await axios.post(`${API_BASE_URL}/search/start`, data, { // post the lead generation request
                 headers: { // headers
-                    "content-type": "application/json", // content type
-                    accept: "application / json", // accept
-                    "admin-token": `${token}`, // admin token
+                    "Content-Type": "application/json", // content type
+                    accept: "application/json", // accept
+                    "Authorization": `Bearer ${token}`, // bearer token
                 },
             });
             if (res.status === 200) { // if response is 200
@@ -57,8 +64,12 @@ export default {
                 return null; // return null
             }
         } catch (error) { // catch the error
-            console.log(error); // log the error
-            toast.error("Failed to fetch lead generation"); // show error message
+            console.log("Error Details:", error.response || error); // log detailed error
+            if (error.response?.status === 401) {
+                toast.error("Authentication failed. Token may be expired. Please login again.");
+            } else {
+                toast.error("Failed to fetch lead generation"); // show error message
+            }
             return null; // return null
         }
     },

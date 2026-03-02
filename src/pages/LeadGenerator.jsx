@@ -32,9 +32,17 @@ const LeadGenerator = () => {
         e.preventDefault(); // prevent default form submission
         console.log("form data", formData); // log form data
 
+        // Transform form data to match API requirements
+        const apiData = {
+            location: formData.city, // API expects 'location'
+            niche: formData.query,   // API expects 'niche'
+            limit: parseInt(formData.count) || 10  // API expects 'limit' as number
+        };
+        console.log("Transformed API data", apiData); // log transformed data
+
         // call API to add lead
         setLoading(true); // show loading
-        const response_data = await Api.addLead(formData, adminToken);
+        const response_data = await Api.addLead(apiData, adminToken);
         console.log("response data", response_data);
 
         if (response_data) {
