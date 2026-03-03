@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
     ChevronRight,
     Filter,
@@ -12,83 +12,112 @@ import {
     ChevronRight as ChevronRightIcon,
     ArrowRight,
     Plus,
-    X
+    X,
+    Users,
+    Loader2
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Modal from '../components/ui/Modal';
 import Pagination from '../components/ui/Pagination';
 
+// StarRating Component (same as LeadDetails)
+const StarRating = ({ rating, max = 5, size = 'md' }) => {
+    const sizeClasses = {
+        sm: 'text-sm',
+        md: 'text-base',
+        lg: 'text-lg',
+    };
+    return (
+        <div className="flex items-center gap-0.5">
+            {[...Array(max)].map((_, i) => {
+                const fill = Math.min(Math.max(rating - i, 0), 1);
+                const fillPct = Math.round(fill * 100);
+                return (
+                    <span
+                        key={i}
+                        className={`relative inline-block ${sizeClasses[size]} leading-none`}
+                        style={{ width: '1em', height: '1em' }}
+                    >
+                        <span className="text-gray-200">★</span>
+                        {fillPct > 0 && (
+                            <span
+                                className="absolute inset-0 overflow-hidden text-yellow-400"
+                                style={{ width: `${fillPct}%` }}
+                            >
+                                ★
+                            </span>
+                        )}
+                    </span>
+                );
+            })}
+            <span className="ml-1 text-xs text-gray-400 font-medium">{rating}</span>
+        </div>
+    );
+};
+
 const EnrichLeads = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+    const [leadData, setLeadData] = useState(null);
     const [filters, setFilters] = useState({
-        parameter: ''
+        parameter: '',
+        websiteAvailable: 'Any',
+        minRating: 0
     });
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
 
-    const leads = [
-        {
-            id: 1,
-            initials: 'TS',
-            initialsColor: 'bg-blue-50 text-blue-500',
-            name: 'TechFlow Solutions',
-            location: 'San Francisco, CA',
-            mobile: '+1 (555) 123-4567',
-            email: 'contact@techflow.com',
-            rating: 4,
-            status: 'Enriched',
-            statusColor: 'bg-green-50 text-green-500'
-        },
-        {
-            id: 2,
-            initials: 'NR',
-            initialsColor: 'bg-purple-50 text-purple-500',
-            name: 'Nexus Retail',
-            location: 'Austin, TX',
-            mobile: '+1 (555) 987-6543',
-            email: 'info@nexus.com',
-            rating: 3,
-            status: 'Pending',
-            statusColor: 'bg-orange-50 text-orange-500'
-        },
-        {
-            id: 3,
-            initials: 'AI',
-            initialsColor: 'bg-cyan-50 text-cyan-500',
-            name: 'Apex Innovations',
-            location: 'New York, NY',
-            mobile: '+1 (555) 456-7890',
-            email: 'sales@apex.com',
-            rating: 5,
-            status: 'Enriched',
-            statusColor: 'bg-green-50 text-green-500'
+    useEffect(() => {
+        if (location.state?.results) {
+            setLeadData({
+                leads: location.state.results,
+                ...(location.state.queryInfo || {})
+            });
         }
-    ];
+    }, [location.state]);
 
-    const RatingStars = ({ count }) => {
-        return (
-            <div className="flex gap-0.5">
-                {[...Array(5)].map((_, i) => (
-                    <Star
-                        key={i}
-                        size={14}
-                        className={i < count ? "fill-orange-400 text-orange-400" : "text-gray-200"}
-                    />
-                ))}
-            </div>
-        );
-    };
+    // Extract properties safely from leadData
+    const queryValue = leadData?.query || 'N/A';
+    const cityValue = leadData?.city || 'N/A';
+    const areaValue = leadData?.area || 'N/A';
+    const leads = leadData?.leads || [];
+    const totalLeadsCount = leads.length;
 
     const startIndex = (currentPage - 1) * itemsPerPage;
     const currentLeads = leads.slice(startIndex, startIndex + itemsPerPage);
+
+    const stats = [
+        { label: 'SEARCH QUERY', value: queryValue },
+        { label: 'CITY', value: cityValue },
+        { label: 'AREA', value: areaValue },
+        { label: 'TOTAL LEADS', value: totalLeadsCount.toString(), icon: Users },
+    ];
+
+    // Show loading or no data states
+    if (!leadData) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 space-y-6 py-20">
+                <div className="bg-gray-50 p-6 rounded-full">
+                    <Search size={48} className="text-gray-300" />
+                </div>
+                <div className="text-center">
+                    <p className="text-lg font-bold text-gray-900">No Lead Data Found</p>
+                    <p className="text-sm text-gray-500 mt-1">Please generate leads from the generator page first.</p>
+                </div>
+                <Button onClick={() => navigate('/lead-generator')} className="px-8">
+                    Go to Generator
+                </Button>
+            </div>
+        );
+    }
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-10">
             {/* Breadcrumbs */}
             <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">
-                <span>LEAD GENERATION</span>
+                <button onClick={() => navigate('/lead-details', { state: { results: leads, queryInfo: { query: queryValue, city: cityValue, area: areaValue } } })} className="hover:text-primary transition-colors">LEAD DETAILS</button>
                 <ChevronRight size={10} />
                 <span className="text-gray-900">ENRICH</span>
             </div>
@@ -123,7 +152,16 @@ const EnrichLeads = () => {
                             Cancel
                         </button>
                         <Button
-                            onClick={() => navigate('/review-leads')}
+                            onClick={() => navigate('/review-leads', { 
+                                state: { 
+                                    results: leads,
+                                    queryInfo: {
+                                        query: queryValue,
+                                        city: cityValue,
+                                        area: areaValue
+                                    }
+                                }
+                            })}
                             className="px-8 flex items-center gap-2"
                         >
                             Next <ArrowRight size={18} />
@@ -207,6 +245,25 @@ const EnrichLeads = () => {
                 </div>
             </Modal>
 
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {stats.map((stat) => (
+                    <Card key={stat.label} noPadding className="p-4" >
+                        <div className="flex items-center justify-between">
+                            <div className="space-y-1">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{stat.label}</p>
+                                <p className="text-xl font-bold text-gray-900">{stat.value}</p>
+                            </div>
+                            {stat.icon && (
+                                <div className="text-gray-200">
+                                    <stat.icon size={36} />
+                                </div>
+                            )}
+                        </div>
+                    </Card>
+                ))}
+            </div>
+
             {/* Leads Table */}
             <Card noPadding className="overflow-hidden border-none shadow-xl shadow-black/[0.02]">
                 <div className="overflow-x-auto">
@@ -222,38 +279,51 @@ const EnrichLeads = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
-                            {currentLeads.map((lead) => (
-                                <tr key={lead.id} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors">
+                            {currentLeads.map((lead, index) => (
+                                <tr key={lead.id || index} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors">
                                     <td className="px-8 py-6">
                                         <div className="flex items-center gap-4">
-                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs ${lead.initialsColor}`}>
-                                                {lead.initials}
+                                            <div className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs bg-primary/10 text-primary">
+                                                {(lead.name || lead.BusinessName || 'NA').substring(0, 2).toUpperCase()}
                                             </div>
                                             <div>
-                                                <p className="font-bold text-gray-900 text-sm leading-tight">{lead.name}</p>
-                                                <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5">{lead.location}</p>
+                                                <p className="font-bold text-gray-900 text-sm leading-tight">{lead.name || lead.BusinessName || 'N/A'}</p>
+                                                <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5">{lead.address || 'No address'}</p>
                                             </div>
                                         </div>
                                     </td>
                                     <td className="px-8 py-6 text-sm font-bold text-gray-500">
-                                        {lead.mobile}
+                                        {lead.phone || lead.MobileNumber || 'N/A'}
                                     </td>
                                     <td className="px-8 py-6 text-sm font-medium text-gray-500">
-                                        {lead.email}
+                                        {lead.email || 'N/A'}
                                     </td>
                                     <td className="px-8 py-6">
-                                        <RatingStars count={lead.rating} />
+                                        <StarRating rating={lead.rating || 0} size="sm" />
                                     </td>
                                     <td className="px-8 py-6 text-sm">
-                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-tight ${lead.statusColor}`}>
-                                            {lead.status}
+                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-tight ${
+                                            lead.status === 'Active' || lead.status === 'Enriched' 
+                                                ? 'bg-green-50 text-green-500' 
+                                                : 'bg-orange-50 text-orange-500'
+                                        }`}>
+                                            {lead.status || 'Pending'}
                                         </span>
                                     </td>
                                     <td className="px-8 py-6 text-right">
                                         <div className="flex items-center justify-end gap-3 text-gray-300">
                                             <button
                                                 className="p-2 hover:text-primary transition-colors hover:bg-primary/5 rounded-lg active:scale-90"
-                                                onClick={() => navigate('/lead-details')}
+                                                onClick={() => navigate('/lead-details', { 
+                                                    state: { 
+                                                        results: leads,
+                                                        queryInfo: {
+                                                            query: queryValue,
+                                                            city: cityValue,
+                                                            area: areaValue
+                                                        }
+                                                    }
+                                                })}
                                             >
                                                 <Eye size={18} />
                                             </button>
@@ -279,7 +349,16 @@ const EnrichLeads = () => {
             <div className="flex justify-end">
                 <Button
                     className="px-10 shadow-2xl shadow-primary/30 text-lg"
-                    onClick={() => navigate('/review-leads')}
+                    onClick={() => navigate('/review-leads', { 
+                        state: { 
+                            results: leads,
+                            queryInfo: {
+                                query: queryValue,
+                                city: cityValue,
+                                area: areaValue
+                            }
+                        }
+                    })}
                 >
                     Next
                     <ChevronRight size={18} strokeWidth={3} />

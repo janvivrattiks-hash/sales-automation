@@ -405,7 +405,16 @@ const LeadDetails = () => {
             {/* Enrich Data Button */}
             <div className="flex justify-end">
                 <Button
-                    onClick={() => navigate('/enrich')}
+                    onClick={() => navigate('/enrich', { 
+                        state: { 
+                            results: leads,
+                            queryInfo: {
+                                query: queryValue,
+                                city: cityValue,
+                                area: areaValue
+                            }
+                        }
+                    })}
                     className="px-10 shadow-2xl shadow-primary/30 text-lg"
                 >
                     <Sparkles size={20} fill="currentColor" />
