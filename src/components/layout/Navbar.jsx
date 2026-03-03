@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bell, Search, Settings, ChevronDown, User, LogOut, CheckCircle, Menu } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useNavigate } from 'react-router-dom';
 
 const Navbar = ({ onLogout }) => {
     const { user, notifications, sidebarOpen, setSidebarOpen } = useApp();
+    const navigate = useNavigate();
     const [showNotifications, setShowNotifications] = useState(false);
     const [showProfile, setShowProfile] = useState(false);
 
@@ -120,17 +122,32 @@ const Navbar = ({ onLogout }) => {
                         {showProfile && (
                             <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                                 <div className="p-2">
-                                    <button className="flex items-center gap-3 w-full p-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
+                                    <button
+                                        onClick={() => {
+                                            setShowProfile(false);
+                                            navigate('/edit-profile');
+                                        }}
+                                        className="flex items-center gap-3 w-full p-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                                    >
                                         <User size={18} />
                                         <span>Edit Profile</span>
                                     </button>
-                                    <button className="flex items-center gap-3 w-full p-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
+                                    <button
+                                        onClick={() => {
+                                            setShowProfile(false);
+                                            navigate('/settings');
+                                        }}
+                                        className="flex items-center gap-3 w-full p-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                                    >
                                         <Settings size={18} />
                                         <span>Settings</span>
                                     </button>
                                     <div className="my-1 border-t border-gray-100"></div>
                                     <button
-                                        onClick={onLogout}
+                                        onClick={() => {
+                                            setShowProfile(false);
+                                            onLogout();
+                                        }}
                                         className="flex items-center gap-3 w-full p-2.5 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                                     >
                                         <LogOut size={18} />
