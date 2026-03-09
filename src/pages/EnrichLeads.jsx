@@ -23,8 +23,11 @@ const EnrichLeads = () => {
     const navigate = useNavigate();
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
     const [filters, setFilters] = useState({
-        parameter: ''
+        parameter: '',
+        minRating: 0,
+        websiteAvailable: 'Any'
     });
+    const [selectedLeads, setSelectedLeads] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
 
@@ -83,6 +86,23 @@ const EnrichLeads = () => {
 
     const startIndex = (currentPage - 1) * itemsPerPage;
     const currentLeads = leads.slice(startIndex, startIndex + itemsPerPage);
+
+    const toggleSelectLead = (id) => {
+        setSelectedLeads(prev =>
+            prev.includes(id) ? prev.filter(leadId => leadId !== id) : [...prev, id]
+        );
+    };
+
+    const toggleSelectAll = () => {
+        const currentIds = currentLeads.map(l => l.id);
+        const allSelected = currentIds.every(id => selectedLeads.includes(id));
+
+        if (allSelected) {
+            setSelectedLeads(prev => prev.filter(id => !currentIds.includes(id)));
+        } else {
+            setSelectedLeads(prev => [...new Set([...prev, ...currentIds])]);
+        }
+    };
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-10">
@@ -213,7 +233,17 @@ const EnrichLeads = () => {
                     <table className="w-full min-w-[700px] md:min-w-full">
                         <thead>
                             <tr className="text-left text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-white">
-                                <th className="px-8 py-5">BUSINESS NAME</th>
+                                <th className="px-8 py-5 w-10">
+                                    <div className="flex items-center">
+                                        <input
+                                            type="checkbox"
+                                            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary/20 cursor-pointer"
+                                            checked={currentLeads.length > 0 && currentLeads.every(l => selectedLeads.includes(l.id))}
+                                            onChange={toggleSelectAll}
+                                        />
+                                    </div>
+                                </th>
+                                <th className="px-4 py-5">BUSINESS NAME</th>
                                 <th className="px-8 py-5">CONTACT MOBILE</th>
                                 <th className="px-8 py-5">EMAIL</th>
                                 <th className="px-8 py-5">RATING</th>
@@ -223,8 +253,18 @@ const EnrichLeads = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
                             {currentLeads.map((lead) => (
-                                <tr key={lead.id} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors">
-                                    <td className="px-8 py-6">
+                                <tr key={lead.id} className={`group hover:bg-primary/[0.02] transition-colors ${selectedLeads.includes(lead.id) ? 'bg-primary/[0.02]' : 'even:bg-gray-100/40'}`}>
+                                    <td className="px-8 py-6 w-10">
+                                        <div className="flex items-center">
+                                            <input
+                                                type="checkbox"
+                                                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary/20 cursor-pointer"
+                                                checked={selectedLeads.includes(lead.id)}
+                                                onChange={() => toggleSelectLead(lead.id)}
+                                            />
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-6">
                                         <div className="flex items-center gap-4">
                                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs ${lead.initialsColor}`}>
                                                 {lead.initials}

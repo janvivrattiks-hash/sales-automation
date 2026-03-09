@@ -89,10 +89,16 @@ const LeadDetails = () => {
                     <h1 className="text-2xl font-bold text-gray-900">Search Details</h1>
                     <p className="text-gray-500 text-sm mt-1">View and manage the results of your lead generation query.</p>
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 border border-red-100 text-red-500 rounded-lg hover:bg-red-50 transition-colors text-sm font-bold">
-                    <Trash2 size={16} />
-                    Delete Search
-                </button>
+                <div className="flex flex-row md:flex-col gap-3">
+                    <Button onClick={() => navigate('/enrich')} className="flex items-center gap-2 px-4 py-2 shadow-lg shadow-primary/20">
+                        <Sparkles size={16} fill="currentColor" />
+                        Enrich Data
+                    </Button>
+                    <button className="flex items-center gap-2 px-4 py-2 border border-red-100 text-red-500 rounded-lg hover:bg-red-50 transition-colors text-sm font-bold">
+                        <Trash2 size={16} />
+                        Delete Search
+                    </button>
+                </div>
             </div>
 
             {/* Summary Cards */}
@@ -191,16 +197,7 @@ const LeadDetails = () => {
                 )}
             </Card>
 
-            {/* Enrich Data Button */}
-            <div className="flex justify-end">
-                <Button
-                    onClick={() => navigate('/enrich')}
-                    className="px-10 shadow-2xl shadow-primary/30 text-lg"
-                >
-                    <Sparkles size={20} fill="currentColor" />
-                    Enrich Data
-                </Button>
-            </div>
+
         </div>
     );
 };
