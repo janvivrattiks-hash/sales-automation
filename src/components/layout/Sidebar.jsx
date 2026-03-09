@@ -17,7 +17,7 @@ const Sidebar = () => {
     const location = useLocation();
 
     const navItems = [
-        { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+        { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
         { name: 'Lead Generator', path: '/lead-generator', icon: Search, subPaths: ['/lead-details', '/search-history', '/enrich', '/review-leads', '/final-leads'] },
         { name: 'Contacts Management', path: '/contacts', icon: Users },
         { name: 'Report Management', path: '/reports', icon: BarChart3 },

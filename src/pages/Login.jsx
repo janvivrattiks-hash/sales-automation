@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { Mail, Lock, LogIn, Chrome, Eye, EyeOff } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Api from '../../scripts/Api';
 import { useNavigate } from 'react-router-dom';
+import { AppContext } from '../context/AppContext';
 
 const Login = () => {
     const navigate = useNavigate();
+    const { setAdminToken } = useContext(AppContext);
     const [form, setForm] = useState({
         email: '',
         password: '',
@@ -31,7 +33,8 @@ const Login = () => {
             setUser(respose_data); // set user
             setForm({ email: '', password: '' }); // clear form
             setToken(respose_data); // set token
-            localStorage.setItem('token', respose_data); // set token in local storage
+            localStorage.setItem('admin_token', respose_data.access_token); // set token in local storage
+            setAdminToken(respose_data.access_token); // set token in context
             navigate('/dashboard'); // navigate to dashboard
         } else { // if response is null
             setError("invalid login credentials"); // set error message
