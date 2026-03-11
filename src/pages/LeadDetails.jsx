@@ -294,7 +294,16 @@ const LeadDetails = () => {
                     <p className="text-gray-500 text-sm mt-1">View and manage the results of your lead generation query.</p>
                 </div>
                 <div className="flex flex-row md:flex-col gap-3">
-                    <Button onClick={() => navigate('/enrich')} className="flex items-center gap-2 px-4 py-2 shadow-lg shadow-primary/20">
+                    <Button onClick={() => navigate('/enrich', {
+                        state: {
+                            results: leads,
+                            queryInfo: {
+                                query: queryValue,
+                                city: cityValue,
+                                area: areaValue
+                            }
+                        }
+                    })} className="flex items-center gap-2 px-4 py-2 shadow-lg shadow-primary/20">
                         <Sparkles size={16} fill="currentColor" />
                         Enrich Data
                     </Button>
@@ -410,7 +419,7 @@ const LeadDetails = () => {
 
 
             {/* Enrich Data Button */}
-            <div className="flex justify-end">
+            {/* <div className="flex justify-end">
                 <Button
                     onClick={() => navigate('/enrich', {
                         state: {
@@ -427,7 +436,7 @@ const LeadDetails = () => {
                     <Sparkles size={20} fill="currentColor" />
                     Enrich Data
                 </Button>
-            </div>
+            </div> */}
 
             {/* Delete Confirmation Modal */}
             {deleteModal.open && (
