@@ -110,7 +110,6 @@ const SingleLeadDetail = ({ lead, onBack }) => {
                 {[
                     { label: 'Rating', value: `${lead.rating ?? 0} / 5` },
                     { label: 'Reviews', value: lead.reviews ?? 0 },
-                    { label: 'Source', value: lead.source ?? 'N/A' },
                     { label: 'Owner', value: lead.owner_name ?? 'N/A' },
                 ].map(s => (
                     <Card key={s.label} noPadding className="p-4">
@@ -293,7 +292,11 @@ const LeadDetails = () => {
                     <h1 className="text-2xl font-bold text-gray-900">Search Details</h1>
                     <p className="text-gray-500 text-sm mt-1">View and manage the results of your lead generation query.</p>
                 </div>
-                <div className="flex flex-row md:flex-col gap-3">
+                <div className="flex flex-row gap-3">
+                    <button className="flex items-center gap-2 px-4 py-2 border border-red-100 text-red-500 rounded-lg hover:bg-red-50 transition-colors text-sm font-bold">
+                        <Trash2 size={16} />
+                        Delete Search
+                    </button>
                     <Button onClick={() => navigate('/enrich', {
                         state: {
                             results: leads,
@@ -307,10 +310,7 @@ const LeadDetails = () => {
                         <Sparkles size={16} fill="currentColor" />
                         Enrich Data
                     </Button>
-                    <button className="flex items-center gap-2 px-4 py-2 border border-red-100 text-red-500 rounded-lg hover:bg-red-50 transition-colors text-sm font-bold">
-                        <Trash2 size={16} />
-                        Delete Search
-                    </button>
+
                 </div>
             </div>
 
@@ -342,22 +342,31 @@ const LeadDetails = () => {
                                 <th className="px-8 py-5">Business Name</th>
                                 <th className="px-8 py-5">Contact Mobile</th>
                                 <th className="px-8 py-5">Email</th>
+                                <th className="px-8 py-5">Website</th>
                                 <th className="px-8 py-5">Rating</th>
                                 <th className="px-8 py-5">Status</th>
                                 <th className="px-8 py-5">Action</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-gray-100 flex-wrap">
                             {leads.map((lead, index) => (
-                                <tr key={lead.id || index} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors">
+                                <tr key={lead.id || index} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors cursor-pointer">
                                     <td className="px-8 py-6">
-                                        <span className="font-bold text-gray-900">{lead.name || lead.BusinessName || 'N/A'}</span>
+                                        <span
+                                            className="font-bold text-gray-900 hover:text-primary transition-colors cursor-pointer hover:underline underline-offset-4"
+                                            onClick={() => handleViewLead(lead)}
+                                        >
+                                            {lead.name || lead.BusinessName || 'N/A'}
+                                        </span>
                                     </td>
                                     <td className="px-8 py-6">
                                         <span className="text-xs font-medium text-gray-500">{lead.phone || lead.MobileNumber || 'N/A'}</span>
                                     </td>
                                     <td className="px-8 py-6">
                                         <span className="text-sm text-gray-600">{lead.email || 'N/A'}</span>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <span className="text-sm text-gray-600">{lead.website || 'N/A'}</span>
                                     </td>
                                     <td className="px-8 py-6">
                                         <StarRating rating={lead.rating || 0} size="sm" />

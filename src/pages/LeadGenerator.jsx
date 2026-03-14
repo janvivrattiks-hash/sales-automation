@@ -104,6 +104,7 @@ const LeadGenerator = () => {
 
         if (response_data) {
             toast.success("Lead generated successfully"); // show success message
+            setLeads(response_data); // Sync to context
             const queryInfo = { // store query info
                 query: formData.query,
                 city: formData.city,
@@ -134,205 +135,223 @@ const LeadGenerator = () => {
 
     return (
         <>
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-8">
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">Generate New Leads</h1>
-                <p className="text-gray-500 text-sm mt-1">Find your ideal customers by business category and location.</p>
-            </div>
-
-            <Card noPadding className="p-6">
-                <form onSubmit={handleGenerateLeads}>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div>
-                            <label className="text-sm font-bold text-gray-700">Business Category</label>
-                            <div className="relative">
-                                <LayoutGrid className="absolute left-3 bottom-4 text-gray-400" size={18} />
-                                <input
-                                    type="text"
-                                    name="query"
-                                    value={formData.query}
-                                    onChange={handleInputChange}
-                                    placeholder="Software & IT Servi"
-                                    className="w-full mt-4 pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="text-sm font-bold text-gray-700">City</label>
-                            <div className="relative">
-                                <MapPin className="absolute left-3 bottom-4 text-gray-400" size={18} />
-                                <input
-                                    type="text"
-                                    name="city"
-                                    value={formData.city}
-                                    onChange={handleInputChange}
-                                    placeholder="e.g. San Francisco"
-                                    className="w-full mt-4 pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="text-sm font-bold text-gray-700">Area/Locality</label>
-                            <div className="relative">
-                                <Map className="absolute left-3 bottom-4 text-gray-400" size={18} />
-                                <input
-                                    type="text"
-                                    name="area"
-                                    value={formData.area}
-                                    onChange={handleInputChange}
-                                    placeholder="e.g. Downtown"
-                                    className="w-full mt-4 pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="text-sm font-bold text-gray-700">No. of Leads</label>
-                            <div className="relative">
-                                <Users className="absolute left-3 bottom-4 text-gray-400" size={18} />
-                                <input
-                                    type="text"
-                                    name="count"
-                                    value={formData.count}
-                                    onChange={handleInputChange}
-                                    placeholder="100"
-                                    className="w-full mt-4 pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </form>
-
-
-                {error && (
-                    <div className="mt-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg font-medium">
-                        {error}
-                    </div>
-                )}
-
-                <div className="mt-8 flex justify-end">
-                    <Button
-                        className="flex items-center gap-2 shadow-lg shadow-primary/20 min-w-[180px] justify-center"
-                        onClick={handleGenerateLeads}
-                        disabled={loading}
-                    >
-                        {loading ? (
-                            <Loader2 size={18} className="animate-spin" />
-                        ) : (
-                            <Zap size={18} fill="currentColor" />
-                        )}
-                        {loading ? 'Generating...' : 'Generate Leads'}
-
-                    </Button>
-                </div>
-            </Card>
-
-            <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-gray-900">Recent Activities</h2>
-                    <button
-                        className="text-sm font-bold text-primary hover:underline"
-                        onClick={() => navigate('/search-history')}
-                    >
-                        View All Activities
-                    </button>
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-8">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900">Generate New Leads</h1>
+                    <p className="text-gray-500 text-sm mt-1">Find your ideal customers by business category and location.</p>
                 </div>
 
-                <Card noPadding className="overflow-hidden">
-                    {activitiesLoading ? (
-                        <div className="flex items-center justify-center py-16 text-gray-400">
-                            <Loader2 size={28} className="animate-spin mr-3" />
-                            <span className="text-sm font-medium">Loading activities...</span>
+                <Card noPadding className="p-6">
+                    <form onSubmit={handleGenerateLeads}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div>
+                                <label className="text-sm font-bold text-gray-700">Business Category</label>
+                                <div className="relative">
+                                    <LayoutGrid className="absolute left-3 bottom-4 text-gray-400" size={18} />
+                                    <input
+                                        type="text"
+                                        name="query"
+                                        value={formData.query}
+                                        onChange={handleInputChange}
+                                        placeholder="Software & IT Servi"
+                                        className="w-full mt-4 pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold text-gray-700">City</label>
+                                <div className="relative">
+                                    <MapPin className="absolute left-3 bottom-4 text-gray-400" size={18} />
+                                    <input
+                                        type="text"
+                                        name="city"
+                                        value={formData.city}
+                                        onChange={handleInputChange}
+                                        placeholder="e.g. San Francisco"
+                                        className="w-full mt-4 pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold text-gray-700">Area/Locality</label>
+                                <div className="relative">
+                                    <Map className="absolute left-3 bottom-4 text-gray-400" size={18} />
+                                    <input
+                                        type="text"
+                                        name="area"
+                                        value={formData.area}
+                                        onChange={handleInputChange}
+                                        placeholder="e.g. Downtown"
+                                        className="w-full mt-4 pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold text-gray-700">No. of Leads</label>
+                                <div className="relative">
+                                    <Users className="absolute left-3 bottom-4 text-gray-400" size={18} />
+                                    <input
+                                        type="text"
+                                        name="count"
+                                        value={formData.count}
+                                        onChange={handleInputChange}
+                                        placeholder="100"
+                                        className="w-full mt-4 pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                                    />
+                                </div>
+                            </div>
                         </div>
-                    ) : activities.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-gray-400 space-y-2">
-                            <Search size={36} className="text-gray-200" />
-                            <p className="text-sm font-medium">No recent activities found</p>
+                    </form>
+
+
+                    {error && (
+                        <div className="mt-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg font-medium">
+                            {error}
                         </div>
-                    ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full min-w-[600px] md:min-w-full">
-                            <thead>
-                                <tr className="text-left text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">
-                                    <th className="px-8 py-5">Query Name</th>
-                                    <th className="px-8 py-5">Leads</th>
-                                    <th className="px-8 py-5">Date</th>
-                                    <th className="px-8 py-5 text-right">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {currentActivities.map((activity, idx) => {
-                                    const queryName = activity.query_name ?? 'N/A';
-                                    const leadsCount = activity.search_details?.total_leads ?? activity.results?.length ?? 0;
-                                    const rawDate = activity.search_details?.created_at ?? activity.created_at ?? null;
-                                    const displayDate = rawDate
-                                        ? new Date(rawDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
-                                        : '—';
-                                    return (
-                                        <tr key={activity.job_id ?? idx} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors">
-                                            <td className="px-8 py-5">
-                                                <span className="font-bold text-gray-900">{queryName}</span>
-                                            </td>
-                                            <td className="px-8 py-5">
-                                                <span className="text-sm font-medium text-gray-600">{leadsCount} leads</span>
-                                            </td>
-                                            <td className="px-8 py-5">
-                                                <span className="text-sm font-medium text-gray-600">{displayDate}</span>
-                                            </td>
-                                            <td className="px-8 py-5 text-right">
-                                                <div className="flex items-center justify-end gap-4">
-                                                    <button
-                                                        className="text-gray-400 hover:text-primary transition-colors disabled:opacity-50"
-                                                        title="View leads"
-                                                        disabled={viewingKeyword === activity.job_id}
-                                                        onClick={() => {
-                                                            setViewingKeyword(activity.job_id);
-                                                            navigate('/lead-details', {
-                                                                state: {
-                                                                    results: activity.results ?? [],
-                                                                    queryInfo: {
-                                                                        query: activity.search_details?.niche_or_keyword ?? '',
-                                                                        city: activity.search_details?.location ?? '',
-                                                                        area: activity.search_details?.area ?? 'NA',
-                                                                    },
-                                                                },
-                                                            });
-                                                            setTimeout(() => setViewingKeyword(null), 500);
-                                                        }}
-                                                    >
-                                                        {viewingKeyword === activity.job_id
-                                                            ? <Loader2 size={20} className="animate-spin" />
-                                                            : <Eye size={20} />}
-                                                    </button>
-                                                    <button
-                                                        className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
-                                                        title="Delete search"
-                                                        disabled={deletingJobId === activity.job_id}
-                                                        onClick={() => setDeleteModal({ open: true, job: activity })}
-                                                    >
-                                                        {deletingJobId === activity.job_id
-                                                            ? <Loader2 size={20} className="animate-spin" />
-                                                            : <Trash2 size={20} />}
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                    )}
+
+                    <div className="mt-8 flex justify-end">
+                        <Button
+                            className="flex items-center gap-2 shadow-lg shadow-primary/20 min-w-[180px] justify-center"
+                            onClick={handleGenerateLeads}
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <Loader2 size={18} className="animate-spin" />
+                            ) : (
+                                <Zap size={18} fill="currentColor" />
+                            )}
+                            {loading ? 'Generating...' : 'Generate Leads'}
+
+                        </Button>
                     </div>
-                    )}
-                    {!activitiesLoading && activities.length > 0 && (
-                    <Pagination
-                        currentPage={currentPage}
-                        totalItems={activities.length}
-                        itemsPerPage={itemsPerPage}
-                        onPageChange={setCurrentPage}
-                    />
-                    )}
                 </Card>
+
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-xl font-bold text-gray-900">Recent Activities</h2>
+                        <button
+                            className="text-sm font-bold text-primary hover:underline"
+                            onClick={() => navigate('/search-history')}
+                        >
+                            View All Activities
+                        </button>
+                    </div>
+
+                    <Card noPadding className="overflow-hidden">
+                        {activitiesLoading ? (
+                            <div className="flex items-center justify-center py-16 text-gray-400">
+                                <Loader2 size={28} className="animate-spin mr-3" />
+                                <span className="text-sm font-medium">Loading activities...</span>
+                            </div>
+                        ) : activities.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-16 text-gray-400 space-y-2">
+                                <Search size={36} className="text-gray-200" />
+                                <p className="text-sm font-medium">No recent activities found</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full min-w-[600px] md:min-w-full">
+                                    <thead>
+                                        <tr className="text-left text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                                            <th className="px-8 py-5">Query Name</th>
+                                            <th className="px-8 py-5">Leads</th>
+                                            <th className="px-8 py-5">Date</th>
+                                            <th className="px-8 py-5 text-right">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {currentActivities.map((activity, idx) => {
+                                            const queryName = activity.query_name ?? 'N/A';
+                                            const leadsCount = activity.search_details?.total_leads ?? activity.results?.length ?? 0;
+                                            const rawDate = activity.search_details?.created_at ?? activity.created_at ?? null;
+                                            const displayDate = rawDate
+                                                ? new Date(rawDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+                                                : '—';
+                                            return (
+                                                <tr key={activity.job_id ?? idx} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors cursor-pointer">
+                                                    <td className="px-8 py-5">
+                                                        <span
+                                                            className="font-bold text-gray-900 hover:text-primary transition-colors cursor-pointer hover:underline underline-offset-4"
+                                                            onClick={() => {
+                                                                setViewingKeyword(activity.job_id);
+                                                                navigate('/lead-details', {
+                                                                    state: {
+                                                                        results: activity.results ?? [],
+                                                                        queryInfo: {
+                                                                            query: activity.search_details?.niche_or_keyword ?? activity.query_name ?? '',
+                                                                            city: activity.search_details?.location ?? '',
+                                                                            area: activity.search_details?.area ?? 'NA',
+                                                                        },
+                                                                    },
+                                                                });
+                                                                setTimeout(() => setViewingKeyword(null), 500);
+                                                            }}
+                                                        >
+                                                            {queryName}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-8 py-5">
+                                                        <span className="text-sm font-medium text-gray-600">{leadsCount} leads</span>
+                                                    </td>
+                                                    <td className="px-8 py-5">
+                                                        <span className="text-sm font-medium text-gray-600">{displayDate}</span>
+                                                    </td>
+                                                    <td className="px-8 py-5 text-right">
+                                                        <div className="flex items-center justify-end gap-4">
+                                                            <button
+                                                                className="text-gray-400 hover:text-primary transition-colors disabled:opacity-50"
+                                                                title="View leads"
+                                                                disabled={viewingKeyword === activity.job_id}
+                                                                onClick={() => {
+                                                                    setViewingKeyword(activity.job_id);
+                                                                    navigate('/lead-details', {
+                                                                        state: {
+                                                                            results: activity.results ?? [],
+                                                                            queryInfo: {
+                                                                                query: activity.search_details?.niche_or_keyword ?? '',
+                                                                                city: activity.search_details?.location ?? '',
+                                                                                area: activity.search_details?.area ?? 'NA',
+                                                                            },
+                                                                        },
+                                                                    });
+                                                                    setTimeout(() => setViewingKeyword(null), 500);
+                                                                }}
+                                                            >
+                                                                {viewingKeyword === activity.job_id
+                                                                    ? <Loader2 size={20} className="animate-spin" />
+                                                                    : <Eye size={20} />}
+                                                            </button>
+                                                            <button
+                                                                className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                                                                title="Delete search"
+                                                                disabled={deletingJobId === activity.job_id}
+                                                                onClick={() => setDeleteModal({ open: true, job: activity })}
+                                                            >
+                                                                {deletingJobId === activity.job_id
+                                                                    ? <Loader2 size={20} className="animate-spin" />
+                                                                    : <Trash2 size={20} />}
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        {!activitiesLoading && activities.length > 0 && (
+                            <Pagination
+                                currentPage={currentPage}
+                                totalItems={activities.length}
+                                itemsPerPage={itemsPerPage}
+                                onPageChange={setCurrentPage}
+                            />
+                        )}
+                    </Card>
+                </div>
             </div>
-        </div>
 
             {/* Delete Confirmation Modal */}
             {deleteModal.open && (

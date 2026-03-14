@@ -143,35 +143,35 @@ export default {
             }
             return null; // return null
 
-            }
-        },
+        }
+    },
 
     getSingleLead: async (id, token) => { // get single lead api
-                try { // try to get single lead
-                    if (!token) {
-                        toast.error("Authentication token is missing. Please login again.");
-                        return null;
-                    }
-                    const res = await axios.get(`${API_BASE_URL}/search/get_by_id/${id}`, { // get the single lead
-                        headers: { // headers
-                            accept: "application/json", // accept
-                            "Authorization": `Bearer ${token}`, // bearer token
-                        },
-                    });
-                    if (res.status === 200) { // if response is 200
-                        console.log("Single Lead Response", res.data); // log the response data
-                        return res.data; // return the response data
-                    }
-                } catch (error) { // catch the error
-                    console.log("Error Details:", error.response || error); // log detailed error
-                    if (error.response?.status === 401) {
-                        toast.error("Authentication failed. Token may be expired. Please login again.");
-                    } else {
-                        toast.error("Failed to fetch single lead"); // show error message
-                    }
-                    return null; // return null
-                }
-            },
+        try { // try to get single lead
+            if (!token) {
+                toast.error("Authentication token is missing. Please login again.");
+                return null;
+            }
+            const res = await axios.get(`${API_BASE_URL}/search/get_by_id/${id}`, { // get the single lead
+                headers: { // headers
+                    accept: "application/json", // accept
+                    "Authorization": `Bearer ${token}`, // bearer token
+                },
+            });
+            if (res.status === 200) { // if response is 200
+                console.log("Single Lead Response", res.data); // log the response data
+                return res.data; // return the response data
+            }
+        } catch (error) { // catch the error
+            console.log("Error Details:", error.response || error); // log detailed error
+            if (error.response?.status === 401) {
+                toast.error("Authentication failed. Token may be expired. Please login again.");
+            } else {
+                toast.error("Failed to fetch single lead"); // show error message
+            }
+            return null; // return null
+        }
+    },
 
     deleteJob: async (id, token) => { // delete job api
         try { // try to delete job
@@ -232,12 +232,12 @@ export default {
         try { // try to add lead
             console.log("Lead Generation Data", data); // log the data
             console.log("Token:", token ? "Token exists" : "Token is missing"); // log token status
-            
+
             if (!token) {
                 toast.error("Authentication token is missing. Please login again.");
                 return null;
             }
-            
+
             const res = await axios.post(`${API_BASE_URL}/search/start`, data, { // post the lead generation request
                 headers: { // headers
                     "Content-Type": "application/json", // content type
@@ -263,5 +263,32 @@ export default {
             return null; // return null
         }
     },
+
+    filterLeads: async (filters, token) => {
+        try {
+            console.log("Filter Params:", filters);
+            const res = await axios.get(`${API_BASE_URL}/search/filter`, {
+                params: {
+                    website: filters.website,
+                    ratting: filters.ratting,
+                    category: filters.category
+                },
+                headers: {
+                    "accept": "application/json",
+                    "Authorization": `Bearer ${token}`
+                }
+            });
+
+            console.log("API RESPONSE:", res.data);
+            return res.data;
+
+        } catch (error) {
+            console.error("Filter API Error:", error);
+            return [];
+        }
+    }
+
+
+
 
 };

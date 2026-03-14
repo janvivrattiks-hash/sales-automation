@@ -84,7 +84,7 @@ const Contacts = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {currentContacts.map((contact) => (
-                                <tr key={contact.id} className="hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors group">
+                                <tr key={contact.id} className="hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors group cursor-pointer">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-4">
                                             <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary font-bold">

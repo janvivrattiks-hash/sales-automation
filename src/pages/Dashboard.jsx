@@ -272,7 +272,7 @@ const Dashboard = () => {
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {currentLeads.map((lead) => (
-                                    <tr key={lead.id} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors">
+                                    <tr key={lead.id} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors cursor-pointer">
                                         <td className="py-4">
                                             <span className="font-bold text-gray-900">{lead.company}</span>
                                         </td>

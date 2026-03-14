@@ -93,7 +93,7 @@ const SearchHistory = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
                             {currentQueries.map((query) => (
-                                <tr key={query.id} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors">
+                                <tr key={query.id} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors cursor-pointer">
                                     <td className="px-8 py-7">
                                         <span className="font-bold text-gray-900 text-base">{query.name}</span>
                                     </td>

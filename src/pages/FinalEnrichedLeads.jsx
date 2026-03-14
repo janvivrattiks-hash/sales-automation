@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useContext } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
     ChevronRight,
     Search,
@@ -22,9 +22,12 @@ import Card from '../components/ui/Card';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
 import Pagination from '../components/ui/Pagination';
+import { AppContext } from '../context/AppContext';
 
 const FinalEnrichedLeads = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const { leads: contextLeads } = useContext(AppContext);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [audienceData, setAudienceData] = useState({
         name: '',
@@ -35,82 +38,60 @@ const FinalEnrichedLeads = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
 
+    // Get leads from location state or fallback to contextLeads
+    const rawLeads = location.state?.results || contextLeads || [];
+    const leads = Array.isArray(rawLeads) ? rawLeads : (rawLeads.results || rawLeads.data || []);
+    const queryInfo = location.state?.queryInfo || {};
+
+    const totalLeads = leads.length;
+    const verifiedEmails = leads.filter(l => l.email || l.Email).length;
+    const enrichmentRate = totalLeads > 0 ? Math.round((verifiedEmails / totalLeads) * 100) : 0;
+
     const stats = [
         {
             label: 'Total Contact Leads',
-            value: '1,248',
-            change: '+12%',
+            value: totalLeads.toLocaleString(),
+            change: '',
             icon: Users,
             color: 'text-blue-500',
             bgColor: 'bg-blue-50'
         },
         {
             label: 'Verified Emails',
-            value: '1,102',
-            change: '+5%',
+            value: verifiedEmails.toLocaleString(),
+            change: '',
             icon: CheckCircle2,
             color: 'text-green-500',
             bgColor: 'bg-green-50'
         },
         {
             label: 'Enrichment Rate',
-            value: '94%',
-            change: '+2%',
+            value: `${enrichmentRate}%`,
+            change: '',
             icon: Zap,
             color: 'text-purple-500',
             bgColor: 'bg-purple-50'
         }
     ];
 
-    const leads = [
-        {
-            id: 1,
-            initials: 'AC',
-            initialsColor: 'bg-blue-50 text-blue-500',
-            name: 'Acme Corp',
-            category: 'RETAIL',
-            mobile: '+1 (555) 012-3456',
-            email: 'john.doe@acme.com',
-            rating: 5,
-            status: 'VERIFIED',
-            statusColor: 'bg-green-50 text-green-500'
-        },
-        {
-            id: 2,
-            initials: 'TS',
-            initialsColor: 'bg-blue-50 text-blue-500',
-            name: 'TechStart Inc',
-            category: 'TECHNOLOGY',
-            mobile: '+1 (555) 987-6543',
-            email: 'jane@techstart.io',
-            rating: 5,
-            status: 'ENRICHED',
-            statusColor: 'bg-blue-50 text-blue-500'
-        },
-        {
-            id: 3,
-            initials: 'GS',
-            initialsColor: 'bg-gray-50 text-gray-500',
-            name: 'Global Solutions',
-            category: 'CONSULTING',
-            mobile: '+1 (555) 456-7890',
-            email: 'contact@global.com',
-            rating: 5,
-            status: 'PENDING',
-            statusColor: 'bg-gray-100 text-gray-500'
-        }
-    ];
-
-    const RatingStars = ({ count }) => {
+    // StarRating Component with fractional support
+    const StarRating = ({ rating, max = 5, size = 'md' }) => {
+        const sizeClasses = { sm: 'text-sm', md: 'text-base', lg: 'text-lg' };
         return (
-            <div className="flex gap-0.5">
-                {[...Array(5)].map((_, i) => (
-                    <Star
-                        key={i}
-                        size={14}
-                        className={i < count ? "fill-orange-400 text-orange-400" : "text-gray-200"}
-                    />
-                ))}
+            <div className="flex items-center gap-0.5">
+                {[...Array(max)].map((_, i) => {
+                    const fill = Math.min(Math.max(rating - i, 0), 1);
+                    const fillPct = Math.round(fill * 100);
+                    return (
+                        <span key={i} className={`relative inline-block ${sizeClasses[size] || 'text-base'} leading-none`} style={{ width: '1em', height: '1em' }}>
+                            <span className="text-gray-200">★</span>
+                            {fillPct > 0 && (
+                                <span className="absolute inset-0 overflow-hidden text-yellow-400" style={{ width: `${fillPct}%` }}>★</span>
+                            )}
+                        </span>
+                    );
+                })}
+                <span className="ml-1 text-[10px] text-gray-400 font-bold">{rating}</span>
             </div>
         );
     };
@@ -153,12 +134,6 @@ const FinalEnrichedLeads = () => {
                 <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <h2 className="text-lg font-bold text-gray-900">Leads Preview</h2>
                     <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="bg-white px-4 border-gray-100 text-gray-600 font-bold flex items-center gap-2">
-                            <Filter size={16} /> Filter
-                        </Button>
-                        <Button variant="outline" size="sm" className="bg-white px-4 border-gray-100 text-gray-600 font-bold flex items-center gap-2">
-                            <Download size={16} /> Export
-                        </Button>
                     </div>
                 </div>
 
@@ -168,6 +143,7 @@ const FinalEnrichedLeads = () => {
                             <tr className="text-left text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">
                                 <th className="px-8 py-5">BUSINESS NAME</th>
                                 <th className="px-8 py-5">CONTACT MOBILE</th>
+                                <th className="px-8 py-5">WEBSITE</th>
                                 <th className="px-8 py-5">EMAIL ADDRESS</th>
                                 <th className="px-8 py-5">LEAD RATING</th>
                                 <th className="px-8 py-5">STATUS</th>
@@ -175,48 +151,64 @@ const FinalEnrichedLeads = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {currentLeads.map((lead) => (
-                                <tr key={lead.id} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors">
-                                    <td className="px-8 py-5">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs ${lead.initialsColor}`}>
-                                                {lead.initials}
+                            {currentLeads.map((lead, index) => {
+                                const initials = (lead.name || lead.BusinessName || 'NA').substring(0, 2).toUpperCase();
+                                const colors = [
+                                    'bg-blue-50 text-blue-500',
+                                    'bg-purple-50 text-purple-500',
+                                    'bg-orange-50 text-orange-500',
+                                    'bg-cyan-50 text-cyan-500',
+                                    'bg-pink-50 text-pink-500',
+                                    'bg-green-50 text-green-500'
+                                ];
+                                const initialsColor = colors[index % colors.length];
+
+                                return (
+                                    <tr key={lead.id || index} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors cursor-pointer">
+                                        <td className="px-8 py-5">
+                                            <div className="flex items-center gap-3">
+                                                {/* <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs ${initialsColor}`}>
+                                                    {initials}
+                                                </div> */}
+                                                <div>
+                                                    <p className="font-bold text-gray-900 text-sm leading-tight">{lead.name || lead.BusinessName || 'N/A'}</p>
+                                                    <p className="text-[10px] font-bold text-gray-400 tracking-tight uppercase mt-0.5">{lead.category || lead.Industry || lead.address || 'No category'}</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="font-bold text-gray-900 text-sm">{lead.name}</p>
-                                                <p className="text-[10px] font-bold text-gray-400 tracking-tight">{lead.category}</p>
+                                        </td>
+                                        <td className="px-8 py-5 text-sm font-bold text-gray-600">
+                                            {lead.mobile || lead.MobileNumber || lead.phone || 'N/A'}
+                                        </td>
+                                        <td className="px-8 py-5 text-sm font-medium text-gray-500">
+                                            {lead.website || 'N/A'}
+                                        </td>
+                                        <td className="px-8 py-5 text-sm font-medium text-gray-500">
+                                            {lead.email || 'N/A'}
+                                        </td>
+                                        <td className="px-8 py-5">
+                                            <StarRating rating={lead.rating || lead.Rating || lead.ratting || 0} size="sm" />
+                                        </td>
+                                        <td className="px-8 py-5 text-sm">
+                                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-tighter ${['VERIFIED', 'Active', 'Enriched', 'Validated'].includes(lead.status) ? 'bg-green-50 text-green-500' : 'bg-blue-50 text-blue-500'}`}>
+                                                {lead.status || 'ENRICHED'}
+                                            </span>
+                                        </td>
+                                        <td className="px-8 py-5 text-right">
+                                            <div className="flex items-center justify-end gap-3 text-gray-300">
+                                                <button
+                                                    className="p-2 hover:text-primary transition-colors hover:bg-primary/5 rounded-lg active:scale-90"
+                                                    onClick={() => navigate('/lead-details', { state: { singleLead: lead, results: leads, queryInfo } })}
+                                                >
+                                                    <Eye size={18} />
+                                                </button>
+                                                <button className="p-2 hover:text-red-500 transition-colors hover:bg-red-50 rounded-lg active:scale-90">
+                                                    <Trash2 size={18} />
+                                                </button>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-5 text-sm font-bold text-gray-600">
-                                        {lead.mobile}
-                                    </td>
-                                    <td className="px-8 py-5 text-sm font-medium text-gray-500">
-                                        {lead.email}
-                                    </td>
-                                    <td className="px-8 py-5">
-                                        <RatingStars count={lead.rating} />
-                                    </td>
-                                    <td className="px-8 py-5 text-sm">
-                                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-tighter ${lead.statusColor}`}>
-                                            {lead.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-8 py-5 text-right">
-                                        <div className="flex items-center justify-end gap-3 text-gray-300">
-                                            <button
-                                                className="p-2 hover:text-primary transition-colors hover:bg-primary/5 rounded-lg active:scale-90"
-                                                onClick={() => navigate('/lead-details')}
-                                            >
-                                                <Eye size={18} />
-                                            </button>
-                                            <button className="p-2 hover:text-red-500 transition-colors hover:bg-red-50 rounded-lg active:scale-90">
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>

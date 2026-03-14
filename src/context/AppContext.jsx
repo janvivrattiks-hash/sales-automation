@@ -10,6 +10,28 @@ export const AppProvider = ({ children }) => {
     const [theme, setTheme] = useState('light');
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [adminToken, setAdminToken] = useState(null);
+    const [leads, setLeads] = useState([]);
+
+
+
+
+    const filterLeads = async (filters, token) => {
+        try {
+            const response = await Api.filterLeads(filters, token);
+
+            const data =
+                Array.isArray(response)
+                    ? response
+                    : response?.data || response?.results || [];
+
+            setLeads(data);   // store filtered leads globally
+            return data;
+
+        } catch (error) {
+            console.error("Filter Leads Error:", error);
+            return [];
+        }
+    };
 
 
     // Load tokens on mount
@@ -84,6 +106,9 @@ export const AppProvider = ({ children }) => {
         adminToken,
         setAdminToken,
         setUser, // Allow manual user updates if needed
+        filterLeads,
+        leads,
+        setLeads,
     };
 
     return <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>;
@@ -96,3 +121,5 @@ export const useApp = () => {
     }
     return context;
 };
+
+export default AppProvider;
