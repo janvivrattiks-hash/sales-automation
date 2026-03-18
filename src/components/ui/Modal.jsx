@@ -10,6 +10,11 @@ const Modal = ({ isOpen, onClose, title, children, footer }) => {
         } else {
             document.body.style.overflow = 'unset';
         }
+
+        // Cleanup: reset overflow when component unmounts or isOpen changes
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
     }, [isOpen]);
 
     if (!isOpen) return null;

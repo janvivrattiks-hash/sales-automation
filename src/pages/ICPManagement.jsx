@@ -8,14 +8,14 @@ const ICPManagement = () => {
     const [icps, setIcps] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchICPs = async () => {
-            const data = await apiClient.getICPs();
-            setIcps(data);
-            setLoading(false);
-        };
-        fetchICPs();
-    }, []);
+    // useEffect(() => {
+    //     const fetchICPs = async () => {
+    //         const data = await apiClient.getICPs();
+    //         setIcps(data);
+    //         setLoading(false);
+    //     };
+    //     fetchICPs();
+    // }, []);
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8">

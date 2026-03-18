@@ -16,7 +16,7 @@ import BusinessInfo from './pages/BusinessInfo';
 import ReviewLeads from './pages/ReviewLeads';
 import FinalEnrichedLeads from './pages/FinalEnrichedLeads';
 import EditProfile from './pages/EditProfile';
-import Settings from './pages/Settings';
+import ScrollToTop from './utils/ScrollToTop';
 import { toast } from 'react-toastify';
 
 // Simple placeholder components
@@ -29,48 +29,51 @@ const App = () => {
   const handleLogout = () => {
     // Clear token from localStorage
     localStorage.removeItem('admin_token');
-    
+
     // Clear token from context
     setAdminToken(null);
-    
+
     // Reset user to default
     setUser({ name: 'Loading...', role: 'User' });
-    
+
     // Show success message
     toast.success('Logged out successfully');
-    
+
     // Navigate to login page
     navigate('/');
   };
 
   return (
-    <Routes>
-      <Route path="/" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
+    <>
+      <ScrollToTop />
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
 
-      <Route
-        path="*"
-        element={
-          <MainLayout onLogout={handleLogout}>
-            <Routes>
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="lead-generator" element={<LeadGenerator />} />
-              <Route path="lead-details" element={<LeadDetails />} />
-              <Route path="search-history" element={<SearchHistory />} />
-              <Route path="enrich" element={<EnrichLeads />} />
-              <Route path="contacts" element={<Contacts />} />
-              <Route path="icp" element={<ICPManagement />} />
-              <Route path="business" element={<BusinessInfo />} />
-              <Route path="review-leads" element={<ReviewLeads />} />
-              <Route path="final-leads" element={<FinalEnrichedLeads />} />
-              <Route path="reports" element={<Reports />} />
-              <Route path="edit-profile" element={<EditProfile />} />
-              <Route path="settings" element={<Settings />} />
-            </Routes>
-          </MainLayout>
-        }
-      />
-    </Routes>
+        <Route
+          path="*"
+          element={
+            <MainLayout onLogout={handleLogout}>
+              <Routes>
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="lead-generator" element={<LeadGenerator />} />
+                <Route path="lead-details" element={<LeadDetails />} />
+                <Route path="search-history" element={<SearchHistory />} />
+                <Route path="enrich" element={<EnrichLeads />} />
+                <Route path="contacts" element={<Contacts />} />
+                <Route path="icp" element={<ICPManagement />} />
+                <Route path="business" element={<BusinessInfo />} />
+                <Route path="review-leads" element={<ReviewLeads />} />
+                <Route path="final-leads" element={<FinalEnrichedLeads />} />
+                <Route path="reports" element={<Reports />} />
+                <Route path="edit-profile" element={<EditProfile />} />
+                {/* <Route path="settings" element={<Settings />} /> */}
+              </Routes>
+            </MainLayout>
+          }
+        />
+      </Routes>
+    </>
   );
 };
 

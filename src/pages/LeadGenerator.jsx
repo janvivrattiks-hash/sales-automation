@@ -16,7 +16,7 @@ const LeadGenerator = () => {
 
     const itemsPerPage = 5; // items per page
     const [formData, setFormData] = useState({ // store form data
-        query: '',
+        niche: '',
         city: '',
         area: '',
         count: ''
@@ -68,7 +68,7 @@ const LeadGenerator = () => {
                     state: {
                         results,
                         queryInfo: {
-                            query: keyword,
+                            niche: keyword,
                             city: '',
                             area: 'NA',
                         },
@@ -92,7 +92,7 @@ const LeadGenerator = () => {
         // Transform form data to match API requirements
         const apiData = {
             location: formData.city, // API expects 'location'
-            niche: formData.query,   // API expects 'niche'
+            niche: formData.niche,   // API expects 'niche'
             limit: parseInt(formData.count) || 10  // API expects 'limit' as number
         };
         console.log("Transformed API data", apiData); // log transformed data
@@ -106,12 +106,12 @@ const LeadGenerator = () => {
             toast.success("Lead generated successfully"); // show success message
             setLeads(response_data); // Sync to context
             const queryInfo = { // store query info
-                query: formData.query,
+                niche: formData.niche,
                 city: formData.city,
                 area: formData.area,
                 count: formData.count,
             };
-            setFormData({ query: '', city: '', area: '', count: '' }); // reset form data
+            setFormData({ niche: '', city: '', area: '', count: '' }); // reset form data
             navigate('/lead-details', { state: { results: response_data, queryInfo } }); // redirect with data
         } else {
             setError("Failed to generate lead"); // show error message
@@ -119,7 +119,7 @@ const LeadGenerator = () => {
         }
         //Reset form after submission
         setFormData({
-            query: '',
+            niche: '',
             city: '',
             area: '',
             count: ''
@@ -150,8 +150,8 @@ const LeadGenerator = () => {
                                     <LayoutGrid className="absolute left-3 bottom-4 text-gray-400" size={18} />
                                     <input
                                         type="text"
-                                        name="query"
-                                        value={formData.query}
+                                        name="niche"
+                                        value={formData.niche}
                                         onChange={handleInputChange}
                                         placeholder="Software & IT Servi"
                                         className="w-full mt-4 pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none"
@@ -279,7 +279,7 @@ const LeadGenerator = () => {
                                                                     state: {
                                                                         results: activity.results ?? [],
                                                                         queryInfo: {
-                                                                            query: activity.search_details?.niche_or_keyword ?? activity.query_name ?? '',
+                                                                            niche: activity.search_details?.niche_or_keyword ?? activity.query_name ?? '',
                                                                             city: activity.search_details?.location ?? '',
                                                                             area: activity.search_details?.area ?? 'NA',
                                                                         },
@@ -309,7 +309,7 @@ const LeadGenerator = () => {
                                                                         state: {
                                                                             results: activity.results ?? [],
                                                                             queryInfo: {
-                                                                                query: activity.search_details?.niche_or_keyword ?? '',
+                                                                                niche: activity.search_details?.niche_or_keyword ?? '',
                                                                                 city: activity.search_details?.location ?? '',
                                                                                 area: activity.search_details?.area ?? 'NA',
                                                                             },

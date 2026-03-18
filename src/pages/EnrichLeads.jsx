@@ -79,9 +79,6 @@ const EnrichLeads = () => {
     const [isFiltered, setIsFiltered] = useState(false);
     const itemsPerPage = 5;
 
-
-
-
     useEffect(() => {
         if (location.state?.results) {
 
@@ -95,6 +92,11 @@ const EnrichLeads = () => {
             });
 
             setOriginalLeads(leadsArray);
+
+            // Pre-populate category filter with the original search query/niche
+            if (location.state.queryInfo?.niche) {
+                setFilters(prev => ({ ...prev, category: location.state.queryInfo.niche }));
+            }
         }
     }, [location.state]);
 
@@ -111,38 +113,41 @@ const EnrichLeads = () => {
         setIsFiltering(true);
 
         const filterParams = {
-            website:
-                filters.website === "Any"
-                    ? null
-                    : filters.website === "Yes"
-                        ? "yes"
-                        : "no",
-            ratting: filters.minRating || null,
-            category: filters.category || null
+            website: filters.website ? filters.website.toLowerCase() : "any",
+            ratting: filters.minRating || 0,
+            category: filters.category || ""
         };
 
         console.log("FILTER PARAMS:", filterParams);
 
         const response = await Api.filterLeads(filterParams, adminToken);
 
-        const filteredData =
-            Array.isArray(response)
-                ? response
-                : response?.data || response?.results || [];
+        let filteredData = [];
+        if (Array.isArray(response)) {
+            filteredData = response;
+        } else if (response && typeof response === 'object') {
+            if (Array.isArray(response.data)) filteredData = response.data;
+            else if (Array.isArray(response.results)) filteredData = response.results;
+            else if (Array.isArray(response.leads)) filteredData = response.leads;
+            else {
+                const possibleArrays = Object.values(response).filter(Array.isArray);
+                if (possibleArrays.length > 0) {
+                    filteredData = possibleArrays.sort((a, b) => b.length - a.length)[0];
+                }
+            }
+        }
 
         console.log("FILTERED DATA:", filteredData);
 
         navigate("/review-leads", {
             state: {
-                results: filteredData
+                results: filteredData,
+                queryInfo: leadData
             }
         });
 
         setIsFiltering(false);
     };
-
-
-
 
     const toggleLeadSelection = (leadId) => {
         setSelectedLeads(prev =>
@@ -164,7 +169,7 @@ const EnrichLeads = () => {
     };
 
     // Extract properties safely from leadData
-    const queryValue = leadData?.query || 'N/A';
+    const queryValue = leadData?.niche || 'N/A';
     const cityValue = leadData?.city || 'N/A';
     const areaValue = leadData?.area || 'N/A';
 
@@ -206,11 +211,15 @@ const EnrichLeads = () => {
         );
     }
 
+    // useEffect(() => {
+    //     window.scrollTo(0, 0);
+    // }, []);
+
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-10">
             {/* Breadcrumbs */}
             <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">
-                <button onClick={() => navigate('/lead-details', { state: { results: leads, queryInfo: { query: queryValue, city: cityValue, area: areaValue } } })} className="hover:text-primary transition-colors">LEAD DETAILS</button>
+                <button onClick={() => navigate('/lead-details', { state: { results: leads, queryInfo: { niche: queryValue, city: cityValue, area: areaValue } } })} className="hover:text-primary transition-colors">LEAD DETAILS</button>
                 <ChevronRight size={10} />
                 <span className="text-gray-900">ENRICH</span>
             </div>
@@ -307,7 +316,7 @@ const EnrichLeads = () => {
                     </div>
 
                     {/* Category */}
-                    <div className="space-y-4">
+                    {/* <div className="space-y-4">
                         <label className="text-sm font-bold text-gray-900">Category</label>
                         <input
                             type="text"
@@ -317,7 +326,7 @@ const EnrichLeads = () => {
                             value={filters.category}
                             onChange={(e) => setFilters({ ...filters, category: e.target.value })}
                         />
-                    </div>
+                    </div> */}
 
                     {/* Additional Parameters */}
                     <div className="space-y-4">
@@ -346,10 +355,8 @@ const EnrichLeads = () => {
                 </div>
             </Modal>
 
-
-
             {/* Leads Table */}
-            <Card noPadding className="overflow-hidden border-none shadow-xl shadow-black/[0.02]">
+            <Card noPadding className="border-none shadow-xl shadow-black/[0.02]">
 
 
                 <div className="overflow-x-auto">
@@ -404,7 +411,7 @@ const EnrichLeads = () => {
                                                                     singleLead: lead,
                                                                     results: leads,
                                                                     queryInfo: {
-                                                                        query: queryValue,
+                                                                        niche: queryValue,
                                                                         city: cityValue,
                                                                         area: areaValue
                                                                     }
@@ -446,7 +453,7 @@ const EnrichLeads = () => {
                                                                 singleLead: lead,
                                                                 results: leads,
                                                                 queryInfo: {
-                                                                    query: queryValue,
+                                                                    niche: queryValue,
                                                                     city: cityValue,
                                                                     area: areaValue
                                                                 }
@@ -497,7 +504,7 @@ const EnrichLeads = () => {
                             state: {
                                 results: leadsToPass,
                                 queryInfo: {
-                                    query: queryValue,
+                                    niche: queryValue,
                                     city: cityValue,
                                     area: areaValue
                                 }

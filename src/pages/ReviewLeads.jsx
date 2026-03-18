@@ -10,22 +10,25 @@ import {
     Star,
     ChevronLeft,
     Users,
-    MoreHorizontal
+    MoreHorizontal,
+    Loader2
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Pagination from '../components/ui/Pagination';
 import { AppContext } from '../context/AppContext';
+import Api from '../../scripts/Api';
+import { toast } from 'react-toastify';
 
 const ReviewLeads = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { leads } = useContext(AppContext);
+    const { leads, adminToken } = useContext(AppContext);
     const [searchTerm, setSearchTerm] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('All');
     const [currentPage, setCurrentPage] = useState(1);
+    const [isEnriching, setIsEnriching] = useState(false);
     const itemsPerPage = 5;
-
 
     const [selectedLeads, setSelectedLeads] = useState([]);
     const [statusFilter, setStatusFilter] = useState('All');
@@ -122,10 +125,77 @@ const ReviewLeads = () => {
 
 
 
+    useEffect(() => {
+        // Force re-enable scrolling in case it was locked by a modal
+        document.body.style.overflow = 'unset';
+        // Initial scroll
+        window.scrollTo(0, 0);
+        // Fallback for slower renders
+        const timer = setTimeout(() => window.scrollTo(0, 0), 10);
+        return () => clearTimeout(timer);
+    }, []);
+
+    const enrichLeads = async () => {
+
+        const leadsToPass = selectedLeads.length
+            ? filteredLeads.filter((lead) => {
+                const id = lead.id || lead.MobileNumber || lead.mobile_number;
+                return selectedLeads.includes(id);
+            })
+            : filteredLeads;
+
+        if (!leadsToPass.length) {
+            toast.warning("Please select at least one lead to enrich");
+            return;
+        }
+
+        setIsEnriching(true);
+
+        try {
+
+            console.log("Leads being sent to enrichment:", leadsToPass);
+
+            const enrichedResults = await Api.enrichLeads(leadsToPass, adminToken);
+
+            if (!enrichedResults) {
+                toast.error("Enrichment failed");
+                return;
+            }
+
+            navigate("/final-leads", {
+                state: {
+                    results: enrichedResults,
+                    queryInfo
+                }
+            });
+
+        } catch (error) {
+
+            console.error("Enrich API Error:", error);
+
+            toast.error("Failed to enrich selected leads");
+
+        } finally {
+
+            setIsEnriching(false);
+
+        }
+    };
+
     return (
+        <div className="animate-in fade-in duration-700 space-y-8 pb-10">
+            {isEnriching && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-sm">
+                    <div className="flex flex-col items-center gap-4 p-8 bg-white rounded-2xl shadow-2xl border border-gray-100">
+                        <Loader2 size={40} className="animate-spin text-blue-600" />
+                        <div className="text-center">
+                            <h3 className="text-lg font-bold text-gray-900">Enriching Leads</h3>
+                            <p className="text-sm text-gray-500 font-medium mt-1">Please wait while we gather more data...</p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
-
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-10">
             {/* Breadcrumbs */}
             <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">
                 <button onClick={() => navigate('/lead-generator')} className="hover:text-primary transition-colors">LEAD GENERATOR</button>
@@ -153,7 +223,7 @@ const ReviewLeads = () => {
             </div>
 
             {/* Table Container */}
-            <Card noPadding className="overflow-hidden border-none shadow-xl shadow-black/[0.02]">
+            <Card noPadding className="border-none shadow-xl shadow-black/[0.02]">
                 {/* Search and Filters Bar */}
                 <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/50">
                     <div className="relative flex-1 max-w-md">
@@ -320,24 +390,21 @@ const ReviewLeads = () => {
             {/* Next Step Button */}
             <div className="flex justify-end">
                 <Button
-                    className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center gap-2 shadow-xl shadow-blue-200 transition-all active:scale-95"
-                    onClick={() => {
-                        const leadsToPass = selectedLeads.length
-                            ? filteredLeads.filter(l => {
-                                const id = l.id || l.MobileNumber || l.mobile_number;
-                                return selectedLeads.includes(id);
-                            })
-                            : filteredLeads;
-                        navigate('/final-leads', {
-                            state: {
-                                results: leadsToPass,
-                                queryInfo
-                            }
-                        });
-                    }}
+                    className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center gap-2 shadow-xl shadow-blue-200 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+                    disabled={isEnriching}
+                    onClick={enrichLeads}
                 >
-                    Next
-                    <ChevronRight size={18} />
+                    {isEnriching ? (
+                        <>
+                            <Loader2 size={18} className="animate-spin" />
+                            Enriching...
+                        </>
+                    ) : (
+                        <>
+                            Next
+                            <ChevronRight size={18} />
+                        </>
+                    )}
                 </Button>
             </div>
         </div>

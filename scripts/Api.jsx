@@ -267,11 +267,14 @@ export default {
     filterLeads: async (filters, token) => {
         try {
             console.log("Filter Params:", filters);
+
+            // Pass standard params ensuring they align fully with the backend's expected schema 
+            // example: /search/filter?website=yes&ratting=4&category=hotel
             const res = await axios.get(`${API_BASE_URL}/search/filter`, {
                 params: {
-                    website: filters.website,
-                    ratting: filters.ratting,
-                    category: filters.category
+                    website: filters.website || 'any',
+                    ratting: filters.ratting || 0,
+                    category: filters.category || ''
                 },
                 headers: {
                     "accept": "application/json",
@@ -285,6 +288,123 @@ export default {
         } catch (error) {
             console.error("Filter API Error:", error);
             return [];
+        }
+    },
+
+    saveAudience: async (data, token) => { // save audience api
+        try { // try to save audience
+            console.log("Save Audience Data:", data); // log audience data
+            console.log("Token:", token ? "Token exists" : "Token is missing"); // log token status
+
+            if (!token) { // if token is missing
+                toast.error("Authentication token is missing. Please login again."); // show error message
+                return null; // return null
+            }
+
+            const res = await axios.post(`${API_BASE_URL}/audiance/`, data, { // post the save audience request
+                headers: {
+                    "Content-Type": "application/json",
+                    accept: "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (res.status === 200) { // if response is 200
+                console.log("Save Audience Response:", res.data); // log the response data
+                return res.data; // return the response data
+            } else { // if response is not 200
+                toast.error("Failed to save audience"); // show error message
+                return null; // return null
+            }
+        } catch (error) { // catch the error
+            console.log("Error Details:", error.response || error); // log detailed error
+            if (error.response?.status === 401) { // if response is 401
+                toast.error("Authentication failed. Token may be expired. Please login again."); // show error message
+            } else { // if response is not 401
+                toast.error("Failed to save audience"); // show error message
+            }
+            return null; // return null
+        }
+    },
+
+    getAudiences: async (token) => { // get audiences api
+        try {
+            if (!token) {
+                toast.error("Authentication token is missing. Please login again.");
+                return null;
+            }
+            const res = await axios.get(`${API_BASE_URL}/audiance/`, {
+                params: {
+                    skip: 0,
+                    limit: 100
+                },
+                headers: {
+                    accept: "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            if (res.status === 200) {
+                console.log("Get Audiences Response:", res.data);
+                return res.data;
+            }
+        } catch (error) {
+            console.log("Error Details:", error.response || error);
+            if (error.response?.status === 401) {
+                toast.error("Authentication failed. Token may be expired. Please login again.");
+            } else {
+                toast.error("Failed to fetch audiences");
+            }
+            return null;
+        }
+    },
+
+
+    enrichLeads: async (leads, token) => {
+        try {
+            if (!token) {
+                console.error("No token provided");
+                return null;
+            }
+
+            const leadsToEnrich = Array.isArray(leads) ? leads : [leads];
+            console.log(`Starting enrichment for ${leadsToEnrich.length} leads...`);
+
+            // Based on the curl example, the API takes a single object: { "business_name": "...", "address": "..." }
+            // If we send an array, it returns a 422. We will call it for each lead concurrently.
+            const enrichmentPromises = leadsToEnrich.map(async (lead) => {
+                const payload = {
+                    business_name: String(lead.name || lead.business_name || lead.BusinessName || ""),
+                    address: String(lead.address || lead.Address || lead.location || lead.full_address || "")
+                };
+
+                try {
+                    const response = await axios.post(
+                        `${API_BASE_URL}/enrichment/`,
+                        payload,
+                        {
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                                "Content-Type": "application/json"
+                            }
+                        }
+                    );
+                    // Return the enriched data combined with existing lead info
+                    return { ...lead, ...response.data, status: 'Enriched' };
+                } catch (error) {
+                    console.error(`Enrichment failed for lead: ${payload.business_name}`, error.response?.data || error.message);
+                    // Return original lead so we don't lose it from the list
+                    return { ...lead, status: 'Failed' };
+                }
+            });
+
+            const results = await Promise.all(enrichmentPromises);
+            console.log("Bulk Enrichment Completed:", results);
+            return results;
+
+        } catch (error) {
+            console.error("Critical Enrich API Error:", error);
+            toast.error("Failed to process leads enrichment");
+            return null;
         }
     }
 

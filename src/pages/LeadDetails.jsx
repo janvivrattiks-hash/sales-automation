@@ -62,6 +62,8 @@ const StarRating = ({ rating, max = 5, size = 'md' }) => {
 
 // ─── Single Lead Detail View ──────────────────────────────────────────────────
 const SingleLeadDetail = ({ lead, onBack }) => {
+    const [isOwnerExpanded, setIsOwnerExpanded] = useState(false);
+
     const InfoRow = ({ icon: Icon, label, value, href }) => (
         <div className="flex items-start gap-4 py-4 border-b border-gray-100 last:border-0">
             <div className="mt-0.5 p-2 bg-primary/5 rounded-lg text-primary shrink-0">
@@ -93,8 +95,8 @@ const SingleLeadDetail = ({ lead, onBack }) => {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">{lead.name ?? 'Lead Detail'}</h1>
-                    <p className="text-gray-500 text-sm mt-1">{lead.category ?? 'No category'}</p>
+                    <h1 className="text-2xl font-bold text-gray-900">{lead.name || lead.BusinessName || 'Lead Detail'}</h1>
+                    <p className="text-gray-500 text-sm mt-1">{lead.category || lead.Industry || 'No category'}</p>
                 </div>
                 <button
                     onClick={onBack}
@@ -108,32 +110,40 @@ const SingleLeadDetail = ({ lead, onBack }) => {
             {/* Stats row */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                    { label: 'Rating', value: `${lead.rating ?? 0} / 5` },
-                    { label: 'Reviews', value: lead.reviews ?? 0 },
-                    { label: 'Owner', value: lead.owner_name ?? 'N/A' },
+                    { label: 'Rating', value: `${lead.rating || lead.Rating || lead.ratting || 0} / 5` },
+                    { label: 'Reviews', value: lead.reviews || lead.Reviews || 0 },
+                    { label: 'Owner', value: lead.owner_name || lead.Owner || 'N/A', isClickable: true },
                 ].map(s => (
-                    <Card key={s.label} noPadding className="p-4">
+                    <Card
+                        key={s.label}
+                        noPadding
+                        className={`p-4 transition-all duration-300 ${s.isClickable ? 'cursor-pointer hover:bg-gray-50/50 hover:shadow-md border-transparent hover:border-primary/20' : ''}`}
+                        onClick={s.isClickable ? () => setIsOwnerExpanded(!isOwnerExpanded) : undefined}
+                    >
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{s.label}</p>
-                        <p className="text-xl font-bold text-gray-900 truncate">{s.value}</p>
+                        <p className={`text-xl font-bold text-gray-900 leading-tight transition-all duration-300 ${s.label === 'Owner' && isOwnerExpanded ? 'whitespace-normal break-words h-auto' : 'truncate'}`}>
+                            {s.value}
+                        </p>
                     </Card>
                 ))}
+
             </div>
 
             {/* Detail card */}
             <Card title="Business Information" subtitle="Full details for this lead">
                 <div className="mt-2">
-                    <InfoRow icon={Tag} label="Business Name" value={lead.name} />
-                    <InfoRow icon={Tag} label="Category" value={lead.category} />
-                    <InfoRow icon={MapPin} label="Address" value={lead.address} />
-                    <InfoRow icon={Phone} label="Phone" value={lead.phone} />
+                    <InfoRow icon={Tag} label="Business Name" value={lead.name || lead.BusinessName} />
+                    <InfoRow icon={Tag} label="Category" value={lead.category || lead.Industry} />
+                    <InfoRow icon={MapPin} label="Address" value={lead.address || lead.Address} />
+                    <InfoRow icon={Phone} label="Phone" value={lead.phone || lead.MobileNumber || lead.mobile} />
                     <InfoRow
                         icon={Globe}
                         label="Website"
-                        value={lead.website ? lead.website.replace(/^https?:\/\//, '').replace(/\/$/, '') : null}
-                        href={lead.website || null}
+                        value={(lead.website || lead.Website || lead.website_url) ? (lead.website || lead.Website || lead.website_url).replace(/^https?:\/\//, '').replace(/\/$/, '') : null}
+                        href={lead.website || lead.Website || lead.website_url || null}
                     />
-                    <InfoRow icon={User} label="Owner Name" value={lead.owner_name} />
-                    <InfoRow icon={MessageSquare} label="Reviews" value={lead.reviews != null ? `${lead.reviews} reviews` : null} />
+                    <InfoRow icon={User} label="Owner Name" value={lead.owner_name || lead.Owner} />
+                    <InfoRow icon={MessageSquare} label="Reviews" value={(lead.reviews || lead.Reviews) != null ? `${lead.reviews || lead.Reviews} reviews` : null} />
 
                     {/* Star rating */}
                     <div className="flex items-start gap-4 py-4">
@@ -142,7 +152,7 @@ const SingleLeadDetail = ({ lead, onBack }) => {
                         </div>
                         <div>
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Rating</p>
-                            <StarRating rating={lead.rating ?? 0} size="md" />
+                            <StarRating rating={lead.rating || lead.Rating || lead.ratting || 0} size="md" />
                         </div>
                     </div>
                 </div>
@@ -173,17 +183,19 @@ const LeadDetails = () => {
 
     // ── Handle View Lead ──────────────────────────────────────────────────────
     const handleViewLead = async (lead) => {
-        if (!lead.id) {
+        const resultId = lead.result_id || lead.id;
+        if (!resultId) {
             toast.error('Lead ID is missing');
             return;
         }
-        setViewingId(lead.id);
+        setViewingId(resultId);
         try {
-            const response = await Api.getSingleLead(lead.id, adminToken);
+            const response = await Api.getSingleLead(resultId, adminToken);
             if (response && response.data) {
                 navigate('/lead-details', { state: { singleLead: response.data } });
             } else {
-                toast.error('Failed to fetch lead details');
+                // Fallback
+                navigate('/lead-details', { state: { singleLead: lead } });
             }
         } catch (error) {
             console.error('Error fetching lead:', error);
@@ -238,7 +250,7 @@ const LeadDetails = () => {
     }
 
     // Extract properties safely from leadData
-    const queryValue = leadData?.query || 'N/A';
+    const queryValue = leadData?.niche || 'N/A';
     const cityValue = leadData?.city || 'N/A';
     const areaValue = leadData?.area || 'N/A';
     const leads = leadData?.leads || [];
@@ -301,7 +313,7 @@ const LeadDetails = () => {
                         state: {
                             results: leads,
                             queryInfo: {
-                                query: queryValue,
+                                niche: queryValue,
                                 city: cityValue,
                                 area: areaValue
                             }

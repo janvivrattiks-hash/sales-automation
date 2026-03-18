@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
     ChevronRight,
@@ -15,28 +15,44 @@ import {
     Plus,
     ChevronDown,
     Eye,
-    Trash2
+    Trash2,
+    Facebook,
+    Instagram,
+    Linkedin,
+    Mail,
+    Phone,
+    Globe
 } from 'lucide-react';
+import { toast } from 'react-toastify';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
 import Pagination from '../components/ui/Pagination';
+import Api from '../../scripts/Api';
 import { AppContext } from '../context/AppContext';
 
 const FinalEnrichedLeads = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { leads: contextLeads } = useContext(AppContext);
+    const { leads: contextLeads, adminToken } = useContext(AppContext);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [audienceData, setAudienceData] = useState({
-        name: '',
-        description: '',
+        audiance_name: '',
+        discription: '',
         icp: '',
-        tags: ['High Priority']
+        tag: 'High Priority'
     });
+    // Internal state for multiple tags support in UI
+    const [uiTags, setUiTags] = useState(['High Priority']);
+
+    const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
+
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, []);
 
     // Get leads from location state or fallback to contextLeads
     const rawLeads = location.state?.results || contextLeads || [];
@@ -44,8 +60,18 @@ const FinalEnrichedLeads = () => {
     const queryInfo = location.state?.queryInfo || {};
 
     const totalLeads = leads.length;
-    const verifiedEmails = leads.filter(l => l.email || l.Email).length;
-    const enrichmentRate = totalLeads > 0 ? Math.round((verifiedEmails / totalLeads) * 100) : 0;
+    const verifiedEmails = leads.filter(l => l.email || l.Email || l.verified_email).length;
+    const enrichmentRate = totalLeads > 0 ? Math.round((leads.filter(l => l.is_enriched || l.email || l.instagram || l.facebook).length / totalLeads) * 100) : 0;
+
+    const filteredLeads = leads.filter(lead => {
+        console.log("Lead:", lead);
+        const search = searchTerm.toLowerCase();
+        return (
+            (lead.name || lead.BusinessName || '').toLowerCase().includes(search) ||
+            (lead.email || lead.Email || '').toLowerCase().includes(search) ||
+            (lead.category || lead.industry || '').toLowerCase().includes(search)
+        );
+    });
 
     const stats = [
         {
@@ -97,10 +123,72 @@ const FinalEnrichedLeads = () => {
     };
 
     const startIndex = (currentPage - 1) * itemsPerPage;
-    const currentLeads = leads.slice(startIndex, startIndex + itemsPerPage);
+    const currentLeads = filteredLeads.slice(startIndex, startIndex + itemsPerPage);
+
+    const handleExportCSV = () => {
+        if (leads.length === 0) return;
+
+        const headers = ["Business Name", "Address", "Mobile", "Email", "Website", "Facebook", "Instagram", "LinkedIn", "Rating"];
+        const csvRows = leads.map(l => [
+            `"${l.name || l.BusinessName || ''}"`,
+            `"${l.address || l.Address || ''}"`,
+            `"${l.mobile || l.MobileNumber || l.phone || ''}"`,
+            `"${l.email || l.Email || ''}"`,
+            `"${l.website || ''}"`,
+            `"${l.facebook || l.facebook_url || ''}"`,
+            `"${l.instagram || l.instagram_url || ''}"`,
+            `"${l.linkedin || l.linkedin_url || ''}"`,
+            l.rating || l.Rating || 0
+        ].join(','));
+
+        const csvContent = [headers.join(','), ...csvRows].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `enriched_leads_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success("CSV exported successfully");
+    };
+
+
+    const handleSaveAudience = async () => { // handle save audience
+        // Prepare payload according to Python curl requirements
+        const payload = {
+            audiance_name: audienceData.audiance_name,
+            discription: audienceData.discription,
+            icp: audienceData.icp,
+            tag: uiTags.join(', ') // backend expects a string "tag"
+        };
+
+        console.log("Saving Audience with Payload:", payload);
+        try {
+            const response = await Api.saveAudience(payload, adminToken); // call API to save audience
+            if (response) { // if response is not null
+                toast.success("Audience saved successfully"); // show success message
+                setIsModalOpen(false); // close modal
+                // Reset form
+                setAudienceData({ audiance_name: '', discription: '', icp: '', tag: '' });
+                setUiTags(['High Priority']);
+                navigate('/contacts');
+            }
+        } catch (error) { // catch error
+            console.error("Error saving audience:", error); // log error message
+            toast.error("Failed to save audience"); // show error message
+        }
+    };
+
+
+    useEffect(() => {
+        window.scrollTo(0, 0);
+        const timer = setTimeout(() => window.scrollTo(0, 0), 10);
+        return () => clearTimeout(timer);
+    }, []);
 
     return (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-10">
+        <div className="animate-in fade-in duration-700 space-y-8 pb-10">
             {/* Header section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -129,11 +217,27 @@ const FinalEnrichedLeads = () => {
             </div>
 
             {/* Table Container */}
-            <Card noPadding className="overflow-hidden border-none shadow-sm rounded-2xl bg-white">
-                {/* Table Header Controls */}
-                <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <h2 className="text-lg font-bold text-gray-900">Leads Preview</h2>
+            <Card noPadding className="border-none shadow-sm rounded-2xl bg-white">
+                <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/50">
+                    <div className="relative flex-1 max-w-md">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <input
+                            type="text"
+                            placeholder="Search in enriched results..."
+                            className="w-full pl-12 pr-4 py-2.5 bg-gray-50/50 border border-transparent rounded-xl text-sm font-medium focus:bg-white focus:border-primary/20 focus:ring-4 focus:ring-primary/5 outline-none transition-all"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
                     <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-sm font-bold"
+                            onClick={handleExportCSV}
+                        >
+                            <Download size={16} />
+                            Export CSV
+                        </Button>
                     </div>
                 </div>
 
@@ -142,9 +246,9 @@ const FinalEnrichedLeads = () => {
                         <thead>
                             <tr className="text-left text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">
                                 <th className="px-8 py-5">BUSINESS NAME</th>
-                                <th className="px-8 py-5">CONTACT MOBILE</th>
+                                <th className="px-8 py-5">CONTACT INFO</th>
+                                <th className="px-8 py-5">SOCIAL LINKS</th>
                                 <th className="px-8 py-5">WEBSITE</th>
-                                <th className="px-8 py-5">EMAIL ADDRESS</th>
                                 <th className="px-8 py-5">LEAD RATING</th>
                                 <th className="px-8 py-5">STATUS</th>
                                 <th className="px-8 py-5 text-right">ACTION</th>
@@ -176,15 +280,61 @@ const FinalEnrichedLeads = () => {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-8 py-5 text-sm font-bold text-gray-600">
-                                            {lead.mobile || lead.MobileNumber || lead.phone || 'N/A'}
+                                        <td className="px-8 py-5">
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2 text-sm font-bold text-gray-600">
+                                                    <Phone size={12} className="text-gray-400" />
+                                                    {lead.mobile || lead.MobileNumber || lead.phone || 'N/A'}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
+                                                    <Mail size={12} className="text-gray-400" />
+                                                    <span className="truncate max-w-[150px]">{lead.email || lead.Email || 'N/A'}</span>
+                                                </div>
+                                            </div>
                                         </td>
-                                        <td className="px-8 py-5 text-sm font-medium text-gray-500">
-                                            {lead.website || 'N/A'}
+                                        <td className="px-8 py-5">
+                                            <div className="flex flex-col gap-1.5">
+                                                {(lead.facebook || lead.facebook_url) && (
+                                                    <a href={lead.facebook || lead.facebook_url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-[#1877F2] hover:opacity-80 transition-opacity font-bold text-[10px] group/soc" title="Facebook">
+                                                        <Facebook size={12} className="group-hover/soc:scale-110 transition-transform" />
+                                                        <span className="truncate max-w-[100px]">{(lead.name || lead.BusinessName || 'Business').split(' ')[0]} FB</span>
+                                                    </a>
+                                                )}
+                                                {(lead.instagram || lead.instagram_url || lead.Instagram_link) && (
+                                                    <a href={lead.instagram || lead.instagram_url || lead.Instagram_link} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-[#E4405F] hover:opacity-80 transition-opacity font-bold text-[10px] group/soc" title="Instagram">
+                                                        <Instagram size={12} className="group-hover/soc:scale-110 transition-transform" />
+                                                        <span className="truncate max-w-[100px]">{(lead.name || lead.BusinessName || 'Business').split(' ')[0]} IG</span>
+                                                    </a>
+                                                )}
+                                                {(lead.linkedin || lead.linkedin_url || lead.Linkedin_link) && (
+                                                    <a href={lead.linkedin || lead.linkedin_url || lead.Linkedin_link} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-[#0A66C2] hover:opacity-80 transition-opacity font-bold text-[10px] group/soc" title="LinkedIn">
+                                                        <Linkedin size={12} className="group-hover/soc:scale-110 transition-transform" />
+                                                        <span className="truncate max-w-[100px]">{(lead.name || lead.BusinessName || 'Business').split(' ')[0]} LI</span>
+                                                    </a>
+                                                )}
+                                                {!(lead.facebook || lead.facebook_url || lead.instagram || lead.instagram_url || lead.Instagram_link || lead.linkedin || lead.linkedin_url || lead.Linkedin_link) && (
+                                                    <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest bg-gray-50 px-2 py-1 rounded w-fit">No social</span>
+                                                )}
+                                            </div>
                                         </td>
-                                        <td className="px-8 py-5 text-sm font-medium text-gray-500">
-                                            {lead.email || 'N/A'}
+                                        <td className="px-8 py-5">
+                                            {lead.website || lead.Website || lead.website_url ? (
+                                                <a
+                                                    href={lead.website || lead.Website || lead.website_url}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 font-bold text-[11px] transition-all group/link underline-offset-4 hover:underline"
+                                                >
+                                                    <Globe size={14} className="text-blue-400 group-hover/link:scale-110 transition-transform" />
+                                                    <span className="truncate max-w-[140px]">
+                                                        {(lead.name || lead.BusinessName || 'Business').split(' ')[0]} Website
+                                                    </span>
+                                                </a>
+                                            ) : (
+                                                <span className="text-xs font-bold text-gray-300">N/A</span>
+                                            )}
                                         </td>
+
                                         <td className="px-8 py-5">
                                             <StarRating rating={lead.rating || lead.Rating || lead.ratting || 0} size="sm" />
                                         </td>
@@ -215,7 +365,7 @@ const FinalEnrichedLeads = () => {
 
                 <Pagination
                     currentPage={currentPage}
-                    totalItems={leads.length}
+                    totalItems={filteredLeads.length}
                     itemsPerPage={itemsPerPage}
                     onPageChange={setCurrentPage}
                 />
@@ -242,7 +392,7 @@ const FinalEnrichedLeads = () => {
                         </Button>
                         <Button
                             className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-100 transition-all active:scale-95"
-                            onClick={() => setIsModalOpen(false)}
+                            onClick={handleSaveAudience}
                         >
                             Create Audience
                         </Button>
@@ -256,8 +406,8 @@ const FinalEnrichedLeads = () => {
                         </label>
                         <Input
                             placeholder="e.g., Surat Cafes Oct 2023"
-                            value={audienceData.name}
-                            onChange={(e) => setAudienceData({ ...audienceData, name: e.target.value })}
+                            value={audienceData.audiance_name}
+                            onChange={(e) => setAudienceData({ ...audienceData, audiance_name: e.target.value })}
                             className="bg-white border-gray-200 py-3 px-4 focus:ring-primary/10 transition-all"
                         />
                     </div>
@@ -269,10 +419,11 @@ const FinalEnrichedLeads = () => {
                         <textarea
                             placeholder="Add a brief description to help your team understand this audience segment..."
                             className="w-full min-h-[100px] p-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/10 transition-all resize-none"
-                            value={audienceData.description}
-                            onChange={(e) => setAudienceData({ ...audienceData, description: e.target.value })}
+                            value={audienceData.discription}
+                            onChange={(e) => setAudienceData({ ...audienceData, discription: e.target.value })}
                         />
                     </div>
+
 
                     <div className="space-y-1.5">
                         <label className="text-xs font-bold text-gray-900 flex items-center gap-1">
@@ -299,11 +450,11 @@ const FinalEnrichedLeads = () => {
                             Tags
                         </label>
                         <div className="flex flex-wrap items-center gap-2 p-3 bg-white border border-gray-200 rounded-xl min-h-[50px]">
-                            {audienceData.tags.map((tag, i) => (
+                            {uiTags.map((tag, i) => (
                                 <span key={i} className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-lg group animate-in zoom-in-95">
                                     {tag}
                                     <button
-                                        onClick={() => setAudienceData({ ...audienceData, tags: audienceData.tags.filter((_, idx) => idx !== i) })}
+                                        onClick={() => setUiTags(uiTags.filter((_, idx) => idx !== i))}
                                         className="hover:text-blue-800"
                                     >
                                         <X size={12} />
@@ -315,15 +466,13 @@ const FinalEnrichedLeads = () => {
                                 className="flex-1 bg-transparent border-none text-sm outline-none min-w-[150px] placeholder:text-gray-400"
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && e.target.value.trim()) {
-                                        setAudienceData({
-                                            ...audienceData,
-                                            tags: [...audienceData.tags, e.target.value.trim()]
-                                        });
+                                        setUiTags([...uiTags, e.target.value.trim()]);
                                         e.target.value = '';
                                     }
                                 }}
                             />
                         </div>
+
                         <p className="text-[10px] text-gray-400 font-medium mt-1">Use tags to organize and filter audiences later.</p>
                     </div>
                 </div>
