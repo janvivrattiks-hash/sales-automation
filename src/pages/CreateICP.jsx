@@ -25,8 +25,8 @@ const CreateICP = () => {
         target_business_type: '',
         min_google_rating: 4,
         min_reviews_count: 4,
-        website_available: false,
-        contact_info_available: false,
+        website_available: '',
+        contact_info_available: '',
         ai_matching_instruction: ''
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,8 +48,8 @@ const CreateICP = () => {
                         target_business_type: data.target_business_type || '',
                         min_google_rating: data.min_google_rating || 4,
                         min_reviews_count: data.min_reviews_count || 0,
-                        website_available: data.website_available || false,
-                        contact_info_available: data.contact_info_available || false,
+                        website_available: data.website_available ? String(data.website_available) : '',
+                        contact_info_available: data.contact_info_available ? String(data.contact_info_available) : '',
                         ai_matching_instruction: data.ai_matching_instruction || ''
                     });
                 }
@@ -176,30 +176,22 @@ const CreateICP = () => {
                                 onChange={handleInputChange}
                                 icon={Users}
                             />
-                        </div>
-
-                        <div className="flex flex-col md:flex-row gap-8 p-1 mb-8 border-b border-gray-100 pb-8">
-                            <label className="flex items-center gap-3 cursor-pointer group">
-                                <input
-                                    type="checkbox"
-                                    name="website_available"
-                                    checked={formData.website_available}
-                                    onChange={handleInputChange}
-                                    className="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary transition-colors"
-                                />
-                                <span className="text-sm font-bold text-gray-700 group-hover:text-primary transition-colors">Must Have Website</span>
-                            </label>
-
-                            <label className="flex items-center gap-3 cursor-pointer group">
-                                <input
-                                    type="checkbox"
-                                    name="contact_info_available"
-                                    checked={formData.contact_info_available}
-                                    onChange={handleInputChange}
-                                    className="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary transition-colors"
-                                />
-                                <span className="text-sm font-bold text-gray-700 group-hover:text-primary transition-colors">Must Have Contact Info</span>
-                            </label>
+                            <Input
+                                label="Website Available"
+                                name="website_available"
+                                value={formData.website_available}
+                                onChange={handleInputChange}
+                                placeholder="e.g. Yes / Optional"
+                                icon={Globe}
+                            />
+                            <Input
+                                label="Contact Information Available"
+                                name="contact_info_available"
+                                value={formData.contact_info_available}
+                                onChange={handleInputChange}
+                                placeholder="e.g. Mandatory / Any"
+                                icon={Info}
+                            />
                         </div>
 
                         <div className="space-y-6 p-1">
