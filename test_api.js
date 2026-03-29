@@ -1,0 +1,1 @@
+fetch('http://192.168.1.35:8000/outreach-messages/generate', {method: 'POST', headers: {'Content-Type': 'application/json', 'accept': 'application/json'}, body: JSON.stringify({business_id: '02b4afc1-31aa-45dd-845a-c75429d65cb4'})}).then(r=>r.json()).then(j=>require('fs').writeFileSync('response.json', JSON.stringify(j, null, 2)))

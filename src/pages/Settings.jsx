@@ -4,7 +4,6 @@ import { useApp } from '../context/AppContext';
 import { ChevronLeft, Moon, Sun, Monitor, Bell, Globe, Lock, Eye, EyeOff } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Toggle from '../components/ui/Toggle';
-import { toast } from 'react-toastify';
 
 const Settings = () => {
     const navigate = useNavigate();
@@ -17,7 +16,6 @@ const Settings = () => {
 
     const handleThemeChange = (newTheme) => {
         setTheme(newTheme);
-        toast.success(`Theme changed to ${newTheme} mode`);
         // TODO: Persist theme preference to backend if needed
     };
 
@@ -26,7 +24,6 @@ const Settings = () => {
             ...prev,
             [type]: !prev[type]
         }));
-        toast.success('Notification preferences updated');
     };
 
     return (
@@ -50,21 +47,19 @@ const Settings = () => {
             <Card title="Appearance" subtitle="Customize how the application looks">
                 <div className="mt-6 space-y-4">
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Theme Mode</p>
-                    
+
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         {/* Light Mode */}
                         <button
                             onClick={() => handleThemeChange('light')}
-                            className={`p-4 rounded-xl border-2 transition-all ${
-                                theme === 'light'
+                            className={`p-4 rounded-xl border-2 transition-all ${theme === 'light'
                                     ? 'border-primary bg-primary/5'
                                     : 'border-gray-200 hover:border-gray-300'
-                            }`}
+                                }`}
                         >
                             <div className="flex flex-col items-center gap-3">
-                                <div className={`p-3 rounded-lg ${
-                                    theme === 'light' ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-400'
-                                }`}>
+                                <div className={`p-3 rounded-lg ${theme === 'light' ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-400'
+                                    }`}>
                                     <Sun size={24} />
                                 </div>
                                 <div className="text-center">
@@ -77,16 +72,14 @@ const Settings = () => {
                         {/* Dark Mode */}
                         <button
                             onClick={() => handleThemeChange('dark')}
-                            className={`p-4 rounded-xl border-2 transition-all ${
-                                theme === 'dark'
+                            className={`p-4 rounded-xl border-2 transition-all ${theme === 'dark'
                                     ? 'border-primary bg-primary/5'
                                     : 'border-gray-200 hover:border-gray-300'
-                            }`}
+                                }`}
                         >
                             <div className="flex flex-col items-center gap-3">
-                                <div className={`p-3 rounded-lg ${
-                                    theme === 'dark' ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-400'
-                                }`}>
+                                <div className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-400'
+                                    }`}>
                                     <Moon size={24} />
                                 </div>
                                 <div className="text-center">
@@ -99,16 +92,14 @@ const Settings = () => {
                         {/* System Mode */}
                         <button
                             onClick={() => handleThemeChange('system')}
-                            className={`p-4 rounded-xl border-2 transition-all ${
-                                theme === 'system'
+                            className={`p-4 rounded-xl border-2 transition-all ${theme === 'system'
                                     ? 'border-primary bg-primary/5'
                                     : 'border-gray-200 hover:border-gray-300'
-                            }`}
+                                }`}
                         >
                             <div className="flex flex-col items-center gap-3">
-                                <div className={`p-3 rounded-lg ${
-                                    theme === 'system' ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-400'
-                                }`}>
+                                <div className={`p-3 rounded-lg ${theme === 'system' ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-400'
+                                    }`}>
                                     <Monitor size={24} />
                                 </div>
                                 <div className="text-center">

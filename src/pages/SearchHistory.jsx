@@ -15,7 +15,6 @@ import Card from '../components/ui/Card';
 import Pagination from '../components/ui/Pagination';
 import Api from '../../scripts/Api';
 import { AppContext } from '../context/AppContext';
-import { toast } from 'react-toastify';
 
 const SearchHistory = () => {
     const navigate = useNavigate();
@@ -50,7 +49,7 @@ const SearchHistory = () => {
             const res = await Api.deleteJob(job.job_id, adminToken); // delete job
             if (res !== null) { // if response is not null
                 setActivities(prev => prev.filter(j => j.job_id !== job.job_id)); // remove job from activities
-                toast.success("Search history deleted successfully"); // show success message
+                console.log("Search history deleted successfully"); // show success message
             }
         } catch (error) { // catch error
             console.error("Error deleting job", error); // log error

@@ -19,10 +19,10 @@ const Sidebar = () => {
     const navItems = [
         { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
         { name: 'Lead Generator', path: '/lead-generator', icon: Search, subPaths: ['/lead-details', '/search-history', '/enrich', '/review-leads', '/final-leads'] },
-        { name: 'Contacts Management', path: '/contacts', icon: Users },
+        { name: 'Contacts Management', path: '/contacts', icon: Users, subPaths: ['/audience-list', '/raw-contact-details', '/audience-details', '/contact-details', '/single-audience-view'] },
         { name: 'Report Management', path: '/reports', icon: BarChart3 },
-        { name: 'ICPs', path: '/icp', icon: Target },
-        { name: 'Business Information', path: '/business', icon: Building2 },
+        { name: 'ICPs', path: '/icp', icon: Target, subPaths: ['/create-icp', '/icp-details'] },
+        { name: 'Business Information', path: '/business', icon: Building2, subPaths: ['/edit-business-info'] },
     ];
 
     return (

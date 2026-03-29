@@ -5,7 +5,6 @@ import { ChevronLeft, User, Mail, Phone, Save, Loader2 } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { toast } from 'react-toastify';
 
 const EditProfile = () => {
     const navigate = useNavigate();
@@ -42,10 +41,10 @@ const EditProfile = () => {
         try {
             // TODO: Replace with actual API call when backend endpoint is ready
             // const response = await Api.updateProfile(formData, adminToken);
-            
+
             // Simulate API call
             await new Promise(resolve => setTimeout(resolve, 1000));
-            
+
             // Update local user state
             setUser(prev => ({
                 ...prev,
@@ -54,11 +53,9 @@ const EditProfile = () => {
                 phone: formData.phone_number,
             }));
 
-            toast.success('Profile updated successfully!');
             navigate('/dashboard');
         } catch (error) {
             console.error('Error updating profile:', error);
-            toast.error('Failed to update profile');
         } finally {
             setLoading(false);
         }
@@ -165,11 +162,10 @@ const EditProfile = () => {
                             Account Status
                         </label>
                         <div className="flex items-center gap-2">
-                            <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${
-                                user.is_active 
-                                    ? 'bg-green-100 text-green-600' 
+                            <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${user.is_active
+                                    ? 'bg-green-100 text-green-600'
                                     : 'bg-red-100 text-red-600'
-                            }`}>
+                                }`}>
                                 {user.is_active ? 'Active' : 'Inactive'}
                             </span>
                         </div>
