@@ -43,7 +43,7 @@ const SingleAudienceHeader = ({
                                         {leadStage}
                                     </span>
                                 </div>
-                                <p className="text-gray-500 text-sm mt-1">{leadTitle || 'Contact'} at <span className="font-bold text-primary">{businessName}</span></p>
+                                <p className="text-gray-500 text-sm mt-1">{leadTitle} at <span className="font-bold text-primary">{businessName}</span></p>
                             </div>
                         </div>
 

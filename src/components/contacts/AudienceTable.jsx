@@ -1,15 +1,46 @@
-import React from 'react';
+import React, { useState, useContext } from 'react';
 import { Loader2, Eye, Trash2 } from 'lucide-react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
+import Api from '../../../scripts/Api';
+import { AppContext } from '../../context/AppContext';
 
-const AudienceTable = ({ 
-    audiences, 
-    filteredAudiences, 
-    audLoading, 
-    navigate, 
-    setDeleteModal 
+const AudienceTable = ({
+    audiences,
+    filteredAudiences,
+    audLoading,
+    navigate,
+    setDeleteModal
 }) => {
+    const { adminToken } = useContext(AppContext);
+    const [viewingId, setViewingId] = useState(null);
+    const [fetchingId, setFetchingId] = useState(null);
+
+    const handleViewAudience = async (aud, isNew) => {
+        const id = aud.id || aud.result_id;
+        if (!id) return;
+
+        setFetchingId(id);
+        try {
+            // Fetch detailed audience data as requested
+            const fullDetails = await Api.getAudienceDetails(id, adminToken);
+
+            navigate('/audience-details', {
+                state: {
+                    audience: fullDetails || aud,
+                    selectedAudience: fullDetails || aud,
+                    activeTab: 'enriched',
+                    selectedLeadsData: isNew ? passedLeads : (fullDetails?.leads || fullDetails?.contacts || null)
+                }
+            });
+        } catch (error) {
+            console.error("Fetch Details Error:", error);
+            toast.error("Failed to load audience details");
+        } finally {
+            setFetchingId(null);
+        }
+    };
+
     return (
         <div className="pt-6">
             <div className="mb-4 flex items-center justify-between gap-4">
@@ -31,7 +62,6 @@ const AudienceTable = ({
                         <thead>
                             <tr className="text-left text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-white">
                                 <th className="px-6 py-5">Audience Name</th>
-                                <th className="px-6 py-5">Status</th>
                                 <th className="px-6 py-5">Size</th>
                                 <th className="px-6 py-5">Last Updated</th>
                                 <th className="px-6 py-5 text-right">Action</th>
@@ -60,21 +90,11 @@ const AudienceTable = ({
                                         <tr
                                             key={audience.id || `aud-${idx}-${audience.audiance_name}`}
                                             className="hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors group cursor-pointer"
-                                            onClick={() => navigate('/audience-details', {
-                                                state: {
-                                                    selectedAudience: audience,
-                                                    activeTab: isEnriched ? 'enriched' : 'raw'
-                                                }
-                                            })}
+                                            onClick={() => handleViewAudience(audience)}
                                         >
                                             <td className="px-6 py-5">
                                                 <p className="font-bold text-gray-900 text-sm">{audience.audiance_name}</p>
                                                 <p className="text-[10px] text-gray-400 font-medium truncate max-w-[200px]">{audience.discription || 'No description'}</p>
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-tight uppercase bg-green-50 text-green-500`}>
-                                                    Active
-                                                </span>
                                             </td>
                                             <td className="px-6 py-5">
                                                 <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-lg w-fit">
@@ -82,23 +102,36 @@ const AudienceTable = ({
                                                 </div>
                                             </td>
                                             <td className="px-6 py-5 text-sm font-medium text-gray-500">
-                                                {audience.icp || 'N/A'}
+                                                {audience.updated_at
+                                                    ? new Date(audience.updated_at).toLocaleDateString('en-US', {
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                        year: 'numeric'
+                                                    })
+                                                    : audience.created_at
+                                                        ? new Date(audience.created_at).toLocaleDateString('en-US', {
+                                                            month: 'short',
+                                                            day: 'numeric',
+                                                            year: 'numeric'
+                                                        })
+                                                        : 'N/A'
+                                                }
                                             </td>
                                             <td className="px-6 py-5 text-right">
                                                 <div className="flex items-center justify-end gap-3 text-gray-300">
                                                     <button
-                                                        className="p-2 hover:bg-gray-100 hover:text-gray-700 rounded-lg transition-colors active:scale-90"
+                                                        className="p-2 hover:bg-gray-100 hover:text-gray-700 rounded-lg transition-colors active:scale-90 flex items-center justify-center min-w-[36px]"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            navigate('/audience-details', {
-                                                                state: {
-                                                                    selectedAudience: audience,
-                                                                    activeTab: isEnriched ? 'enriched' : 'raw'
-                                                                }
-                                                            });
+                                                            handleViewAudience(audience);
                                                         }}
+                                                        disabled={viewingId === (audience.id || audience.result_id)}
                                                     >
-                                                        <Eye size={18} />
+                                                        {viewingId === (audience.id || audience.result_id) ? (
+                                                            <Loader2 size={18} className="animate-spin text-primary" />
+                                                        ) : (
+                                                            <Eye size={18} />
+                                                        )}
                                                     </button>
                                                     <button
                                                         className="p-2 hover:bg-red-50 hover:text-red-500 rounded-lg transition-colors active:scale-90"

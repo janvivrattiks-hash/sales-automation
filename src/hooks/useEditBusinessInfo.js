@@ -28,7 +28,7 @@ export const useEditBusinessInfo = () => {
         const file = e.target.files[0];
         if (!file) return;
 
-        if (!user?.admin_id) {
+        if (!user?.id) {
             toast.error("User information not loaded.");
             return;
         }
@@ -47,8 +47,8 @@ export const useEditBusinessInfo = () => {
         setIsUploadingLogo(true);
         try {
             const result = formData.logoUrl 
-                ? await Api.updateProfilePicture(user.admin_id, file)
-                : await Api.uploadProfilePicture(user.admin_id, file);
+                ? await Api.updateProfilePicture(user.id, file)
+                : await Api.uploadProfilePicture(user.id, file);
 
             if (result && (result.url || result.file_url || result.logo_url)) {
                 setFormData(prev => ({
@@ -65,10 +65,10 @@ export const useEditBusinessInfo = () => {
     };
 
     const handleDeleteLogo = async () => {
-        if (!user?.admin_id) return;
+        if (!user?.id) return;
         
         try {
-            const result = await Api.deleteProfilePicture(user.admin_id);
+            const result = await Api.deleteProfilePicture(user.id);
             if (result) {
                 setFormData(prev => ({ ...prev, logoUrl: '' }));
             }
@@ -90,7 +90,7 @@ export const useEditBusinessInfo = () => {
             return;
         }
 
-        if (!user?.admin_id) {
+        if (!user?.id) {
             toast.error("User information not loaded.");
             return;
         }
@@ -107,7 +107,7 @@ export const useEditBusinessInfo = () => {
                 business_description: formData.description
             };
 
-            const result = await Api.updateBusinessInfo(adminToken, user.admin_id, payload);
+            const result = await Api.updateBusinessInfo(adminToken, user.id, payload);
             if (result) {
                 toast.success("Business information updated successfully!");
                 navigate('/business');
@@ -127,13 +127,13 @@ export const useEditBusinessInfo = () => {
                 return;
             }
 
-            if (!user?.admin_id) return;
+            if (!user?.id) return;
 
             try {
                 setIsLoading(true);
                 const [infoData, logoData] = await Promise.all([
-                    Api.getBusinessInfo(adminToken, user.admin_id),
-                    Api.getProfilePicture(user.admin_id)
+                    Api.getBusinessInfo(adminToken, user.id),
+                    Api.getProfilePicture(user.id)
                 ]);
 
                 if (infoData) {
@@ -164,7 +164,7 @@ export const useEditBusinessInfo = () => {
         };
 
         fetchBusinessData();
-    }, [navigate, adminToken, user?.admin_id]);
+    }, [navigate, adminToken, user?.id]);
 
     return {
         formData,

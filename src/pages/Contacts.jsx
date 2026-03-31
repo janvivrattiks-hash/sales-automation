@@ -41,7 +41,7 @@ const Contacts = () => {
         uiTags, setUiTags,
         fetchEnrichedData, fetchRawData, fetchAudiences,
         toggleLeadSelection, toggleModalLeadSelection,
-        handleFilter, handleSaveAudience, handleDeleteLead
+        handleFilter, handleSaveAudience, handleDeleteLead, handleDeleteAudience
     } = contactsHook;
 
     const [isEnriched, setIsEnriched] = useState(location.state?.activeTab === 'enriched');
@@ -116,22 +116,37 @@ const Contacts = () => {
         setViewingId(resultId);
 
         try {
-            const data = await Api.getEnrichmentJson(resultId, adminToken);
+            // Parallel fetch for enrichment data and POI details
+            const [resData, poiData] = await Promise.all([
+                Api.getEnrichmentJson(resultId, adminToken),
+                Api.getPOIDetails(resultId, adminToken)
+            ]);
 
-            if (!data) {
-                console.error("No data received from API");
+            if (!resData) {
+                console.error("No data received from API or data is empty");
                 return;
             }
 
+            // Extract the core data from the full response body
+            const body = resData.data || resData.results || resData.lead || resData;
+            const coreData = Array.isArray(body) ? body[0] : body;
+
+            // Clean merge (POI data will be handled in the Single View page if needed)
+            const mergedLead = {
+                ...lead,
+                ...coreData,
+                poi_details: poiData
+            };
+
             navigate('/contact-details', {
                 state: {
-                    singleLead: { ...lead, ...data }, // ✅ Merge original lead with enriched data
+                    singleLead: mergedLead,
                     fromTab: 'enriched'
                 }
             });
 
         } catch (error) {
-            console.error("Failed to load details");
+            console.error("Failed to load details", error);
         } finally {
             setViewingId(null);
         }
@@ -144,9 +159,18 @@ const Contacts = () => {
         setModalCurrentPage(1);
     };
 
+    const handleDeleteConfirm = async (id) => {
+        const { type } = deleteModalState;
+        if (type === 'audience') {
+            await handleDeleteAudience(id);
+        } else {
+            await handleDeleteLead(id, isEnriched);
+        }
+        setDeleteModalState({ open: false, type: 'lead', data: null });
+    };
+
     return (
         <div className="animate-in fade-in duration-700 space-y-8">
-            {/* Header section... (Truncated for brevity in prompt, but I should keep original layout) */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
                     <div>
@@ -166,7 +190,14 @@ const Contacts = () => {
                     {!isEnriched && (
                         <Button variant="outline" onClick={() => setIsMainFilterOpen(true)} className="flex items-center gap-2 px-4 shadow-sm"><Filter size={16} /> Filter</Button>
                     )}
-                    <Button onClick={isEnriched ? handleOpenFilterModal : handleEnrichLeads} className="flex items-center gap-2 px-6 shadow-lg bg-blue-600 hover:bg-blue-700 font-bold" disabled={!isEnriched && selectedLeads.length === 0 && loading}>
+                    <Button 
+                        onClick={isEnriched 
+                            ? (selectedLeads.length > 0 ? () => setIsSaveAudienceModalOpen(true) : handleOpenFilterModal) 
+                            : handleEnrichLeads
+                        } 
+                        className="flex items-center gap-2 px-6 shadow-lg bg-blue-600 hover:bg-blue-700 font-bold" 
+                        disabled={!isEnriched && selectedLeads.length === 0 && loading}
+                    >
                         {isEnriched ? <Users size={16} /> : <Zap size={16} className="fill-current" />}
                         {isEnriched ? "Create Audience" : "Enrich Data"}
                         {loading && !isEnriched && <Loader2 size={14} className="animate-spin ml-1" />}
@@ -209,7 +240,7 @@ const Contacts = () => {
                                     <th className="px-6 py-4">{isEnriched ? 'CONTACT INFO' : 'Contact Mobile'}</th>
                                     <th className="px-6 py-4">{isEnriched ? 'SOCIAL LINKS' : 'Email'}</th>
                                     <th className="px-6 py-4">WEBSITE</th>
-                                    <th className="px-6 py-4">LEAD RATING</th>
+                                    <th className="px-6 py-4">RATING</th>
                                     <th className="px-6 py-4">STATUS</th>
                                     <th className="px-6 py-4 text-right">ACTION</th>
                                 </tr>
@@ -270,10 +301,24 @@ const Contacts = () => {
                 <Button onClick={() => handleSaveAudience(isEnriched, activeContacts, filterLeadsData)} className="bg-blue-600" disabled={isSavingAudience}>Complete & Save</Button>
             )}>
                 <div className="space-y-6 text-left">
+                    <div className="flex items-center justify-between p-4 bg-primary/5 rounded-2xl border border-primary/10">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                                <Users size={20} />
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold text-gray-900">Leads to Save</p>
+                                <p className="text-[10px] font-bold text-primary uppercase tracking-widest">
+                                    {Array.from(new Set([...selectedLeads, ...selectedLeadsInModal])).length || activeContacts.length} Contacts Ready
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
                     <Input label="Audience Name" placeholder="e.g., Surat Cafes" value={audienceData.audiance_name} onChange={(e) => setAudienceData({ ...audienceData, audiance_name: e.target.value })} />
 
                     <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase">Description</label>
+                        <label className="text-xs font-bold text-gray-500 uppercase pb-1.5 block">Description</label>
                         <textarea className="w-full mt-2 p-3 bg-gray-50 border border-gray-100 rounded-xl min-h-[100px]" value={audienceData.discription} onChange={(e) => setAudienceData({ ...audienceData, discription: e.target.value })} />
                     </div>
                     <div>
@@ -314,7 +359,7 @@ const Contacts = () => {
                 onClose={() => setDeleteModalState({ open: false, type: 'lead', data: null })}
                 type={deleteModalState.type}
                 data={deleteModalState.data}
-                onConfirm={(id) => handleDeleteLead(id, isEnriched)}
+                onConfirm={handleDeleteConfirm}
             />
         </div>
     );

@@ -189,6 +189,7 @@ export default {
             });
             if (res.status === 200) {
                 console.log("Enrichment JSON Response", res.data);
+                // Return full response body as requested, downstream flattener will handle it
                 return res.data;
             }
         } catch (error) {
@@ -198,6 +199,24 @@ export default {
             } else {
                 toast.error("Failed to fetch enriched data.");
             }
+            return null;
+        }
+    },
+
+    getContactInfo: async (id, token) => {
+        try {
+            if (!token) return null;
+            const res = await axios.get(`${API_BASE_URL}/enrichment/analyze-raw/${id}`, {
+                headers: {
+                    accept: "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            if (res.status === 200) {
+                return res.data;
+            }
+        } catch (error) {
+            console.error("getContactInfo Error:", error);
             return null;
         }
     },
@@ -347,17 +366,16 @@ export default {
         }
     },
 
-    saveAudience: async (data, token) => { // save audience api
-        try { // try to save audience
-            console.log("Save Audience Data:", data); // log audience data
-            console.log("Token:", token ? "Token exists" : "Token is missing"); // log token status
-
-            if (!token) { // if token is missing
-                toast.error("Authentication token is missing. Please login again."); // show error message
-                return null; // return null
+    saveAudience: async (data, token) => {
+        try {
+            console.log("Save Audience Data:", data);
+            
+            if (!token) {
+                toast.error("Authentication token is missing. Please login again.");
+                return null;
             }
 
-            const res = await axios.post(`${API_BASE_URL}/audiance`, data, { // post the save audience request
+            const res = await axios.post(`${API_BASE_URL}/audiance/`, data, {
                 headers: {
                     "Content-Type": "application/json",
                     accept: "application/json",
@@ -365,21 +383,21 @@ export default {
                 },
             });
 
-            if (res.status === 200) { // if response is 200
-                console.log("Save Audience Response:", res.data); // log the response data
-                return res.data; // return the response data
-            } else { // if response is not 200
-                toast.error("Failed to save audience"); // show error message
-                return null; // return null
+            if (res.status === 200 || res.status === 201) {
+                console.log("Save Audience Response:", res.data);
+                return res.data;
+            } else {
+                toast.error("Failed to save audience");
+                return null;
             }
-        } catch (error) { // catch the error
-            console.log("Error Details:", error.response || error); // log detailed error
-            if (error.response?.status === 401) { // if response is 401
-                toast.error("Authentication failed. Token may be expired. Please login again."); // show error message
-            } else { // if response is not 401
-                toast.error("Failed to save audience"); // show error message
+        } catch (error) {
+            console.log("Save Audience Error:", error.response || error);
+            if (error.response?.status === 401) {
+                toast.error("Authentication failed. Please login again.");
+            } else {
+                toast.error("Failed to save audience");
             }
-            return null; // return null
+            return null;
         }
     },
 
@@ -420,13 +438,14 @@ export default {
                 toast.error("Authentication token is missing. Please login again.");
                 return null;
             }
-            const res = await axios.delete(`${API_BASE_URL}/audiance/${id}/`, {
+            const res = await axios.delete(`${API_BASE_URL}/audiance/${id}`, {
                 headers: {
-                    accept: "application/json",
+                    accept: "*/*",
                     Authorization: `Bearer ${token}`,
                 },
             });
             if (res.status === 200 || res.status === 204) {
+                console.log("API_SUCCESS: Audience deleted successfully from server (ID:", id, ")");
                 return true;
             }
             return false;
@@ -434,6 +453,54 @@ export default {
             console.log("Delete Audience Error:", error.response || error);
             toast.error("Failed to delete audience");
             return false;
+        }
+    },
+
+    deleteLead: async (id, token) => {
+        try {
+            if (!token) {
+                toast.error("Authentication token is missing. Please login again.");
+                return null;
+            }
+            const res = await axios.delete(`${API_BASE_URL}/audiance/${id}`, {
+                headers: {
+                    accept: "*/*",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            if (res.status === 200 || res.status === 204) {
+                console.log("API_SUCCESS: Lead deleted successfully from server (ID:", id, ")");
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.log("Delete Lead Error:", error.response || error);
+            toast.error("Failed to delete contact");
+            return false;
+        }
+    },
+
+    getAudienceDetails: async (id, token) => {
+        try {
+            if (!token) {
+                toast.error("Authentication token is missing. Please login again.");
+                return null;
+            }
+            const res = await axios.get(`${API_BASE_URL}/audiance/${id}`, {
+                headers: {
+                    accept: "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (res.status === 200) {
+                console.log("Get Audience Details Response:", res.data);
+                return res.data;
+            }
+            return null;
+        } catch (error) {
+            console.log("Get Audience Details Error:", error.response || error);
+            return null;
         }
     },
 
@@ -712,27 +779,37 @@ export default {
 
     getSummary: async (id, token) => { // get summary api - VERSION 3.0
         try {
-            if (!token) {
-                console.log("FETCH_SUMMARY_TOKEN_MISSING");
-                return null;
-            }
-            const cleanId = String(id).trim();
-            const url = `${API_BASE_URL}/contact_managment/summary/${cleanId}`;
-            console.log("FETCH_SUMMARY_API_URL_V3:", url);
-            console.log("FETCH_SUMMARY_BASE_URL:", API_BASE_URL);
-
-            const res = await axios.get(url, {
+            if (!token) return null;
+            const res = await axios.get(`${API_BASE_URL}/contact_managment/summary/${String(id).trim()}`, {
                 headers: {
                     "accept": "application/json",
                     "Authorization": `Bearer ${token}`,
                 },
+                validateStatus: (status) => status < 500 // Allow 404 to pass without throwing
             });
-            console.log("FETCH_SUMMARY_API_RESPONSE_STATUS:", res.status);
-            console.log("FETCH_SUMMARY_API_DATA_FULL:", res.data);
 
+            if (res.status === 404) return null;
             return res.data;
         } catch (error) {
-            console.log("FETCH_SUMMARY_API_ERROR:", error.response || error);
+            console.warn("Summary API info (Expected):", error.message);
+            return null;
+        }
+    },
+
+    getPOIDetails: async (id, token) => { // get POI details api
+        try {
+            if (!token) return null;
+            const res = await axios.get(`${API_BASE_URL}/enrichment/poi-details/${String(id).trim()}`, {
+                headers: {
+                    "accept": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                },
+                validateStatus: (status) => status < 500 // Allow 404 to pass without throwing
+            });
+            if (res.status === 404) return null;
+            return res.data;
+        } catch (error) {
+            console.warn("POI Details API info (Expected):", error.message);
             return null;
         }
     },
@@ -750,60 +827,45 @@ export default {
                     },
                 }
             );
-            console.log("GENERATE_MESSAGES_API_RESPONSE_STATUS:", res.status);
-            console.log("GENERATE_MESSAGES_API_DATA:", res.data);
             return res.data;
         } catch (error) {
-            console.log("GENERATE_MESSAGES_API_ERROR:", error.response || error);
+            console.error("GENERATE_MESSAGES_API_ERROR:", error.message);
             return null;
         }
     },
 
-    getContactInfo: async (jobId, token) => {
+    getContactInfo: async (contactId, token) => {
         try {
-            if (!token) {
-                console.error("Token is missing for getContactInfo");
-                return null;
-            }
-            const res = await axios.get(`${API_BASE_URL}/contact_managment/contact_info/${jobId}`, {
+            if (!token || !contactId) return null;
+            const res = await axios.get(`${API_BASE_URL}/contact_managment/contact_info/${contactId}`, {
                 headers: {
-                    accept: "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
+                    "accept": "application/json",
+                    "Authorization": `Bearer ${token}`
+                }
             });
-            console.log("Contact Info Response:", res.data);
             return res.data;
         } catch (error) {
-            console.error("Error fetching contact info:", error.response || error);
-            if (error.response?.status === 404) {
-                console.log("Contact info not ready yet");
-                return null;
-            }
-            throw error;
+            console.warn("Contact info fetch warning:", error.message);
+            return null;
         }
     },
 
-    getEmailActivityStatus: async (token, id) => { // GET /contact_managment/activity/email-status/{id}
+    getEmailActivityStatus: async (token, id) => { // GET /contact_managment/activity/business/{id}/emails
         try {
             if (!token || !id) return [];
-            const url = `${API_BASE_URL}/contact_managment/activity/business/${id}/email-status`;
+            const url = `${API_BASE_URL}/contact_managment/activity/business/${id}/emails`;
             const res = await axios.get(url, {
                 headers: {
                     accept: "application/json",
                     Authorization: `Bearer ${token}`,
                 },
-                validateStatus: (status) => status < 500, // Treat 404 as a valid response
+                validateStatus: (status) => status < 500, // Handle 404 silently
             });
 
-            if (res.status === 404) {
-                console.log("No activity logs found (404) for ID:", id);
-                return [];
-            }
-
-            console.log("Activity Status Response", res.data);
+            if (res.status === 404) return [];
             return res.data;
         } catch (error) {
-            console.error("Activity Status Error:", error.message);
+            console.warn("Activity Status info (Expected):", error.message);
             return [];
         }
     },

@@ -68,7 +68,22 @@ export const useContacts = (navigate) => {
                     uniqueEnriched.push(lead);
                 }
             });
-            setEnrichedContacts(uniqueEnriched);
+            // NEW: Fetch POI details for each lead in parallel
+            const enrichedWithPoi = await Promise.all(
+                uniqueEnriched.map(async (lead) => {
+                    try {
+                        const poiData = await Api.getPOIDetails(lead.result_id || lead.id, adminToken);
+                        if (poiData) {
+                            console.log(`POI Details for ${lead.name || lead.BusinessName}:`, poiData);
+                        }
+                        return { ...lead, poi_details: poiData };
+                    } catch (e) {
+                        return lead; // Fallback to original lead if POI fails
+                    }
+                })
+            );
+
+            setEnrichedContacts(enrichedWithPoi);
         } catch (error) {
             console.error("Error fetching enriched data:", error);
         } finally {
@@ -157,17 +172,26 @@ export const useContacts = (navigate) => {
         }
         setIsSavingAudience(true);
         try {
+            const currentSelected = Array.from(new Set([...selectedLeads, ...selectedLeadsInModal]));
+            
+            // Search across ALL contacts to find the selected ones
+            const allAvailableContacts = [...enrichedContacts, ...rawContacts];
+            const passedLeads = currentSelected.length > 0
+                ? allAvailableContacts.filter(l => currentSelected.includes(l.id || l.result_id))
+                : (filterLeadsData.length > 0 ? filterLeadsData : activeContacts);
+            
+            const ids = passedLeads.map(l => l.id || l.result_id).filter(Boolean);
+
             const typeTag = isEnriched ? 'Enriched' : 'Raw';
             const finalTags = [typeTag, ...uiTags.filter(t => t !== 'Enriched' && t !== 'Raw')];
-            const payload = { ...audienceData, tag: finalTags.join(', ') };
+            const payload = { 
+                ...audienceData, 
+                tag: finalTags.join(', '),
+                business_ids: ids 
+            };
 
             const response = await Api.saveAudience(payload, adminToken);
-            console.log("Audience saved successfully");
-
-            const currentSelected = Array.from(new Set([...selectedLeads, ...selectedLeadsInModal]));
-            const passedLeads = currentSelected.length > 0
-                ? activeContacts.filter(l => currentSelected.includes(l.id || l.result_id))
-                : (filterLeadsData.length > 0 ? filterLeadsData : activeContacts);
+            console.log("Audience saved successfully with IDs:", ids.length);
 
             // Reset
             setAudienceData({ audiance_name: '', discription: '', icp: '', tag: 'High Priority' });
@@ -197,13 +221,35 @@ export const useContacts = (navigate) => {
     const handleDeleteLead = async (id, isEnriched) => {
         setDeletingId(id);
         try {
-            console.log("Contact deleted successfully");
-            if (isEnriched) setEnrichedContacts(prev => prev.filter(l => (l.id || l.result_id) !== id));
-            else setRawContacts(prev => prev.filter(l => (l.id || l.result_id) !== id));
+            const success = await Api.deleteLead(id, adminToken);
+            if (success) {
+                toast.success("Contact deleted successfully");
+                if (isEnriched) setEnrichedContacts(prev => prev.filter(l => (l.id || l.result_id) !== id));
+                else setRawContacts(prev => prev.filter(l => (l.id || l.result_id) !== id));
+            }
         } catch (error) {
-            console.error("Failed to delete lead");
+            console.error("Failed to delete lead:", error);
         } finally {
             setDeletingId(null);
+        }
+    };
+    
+    const handleDeleteAudience = async (id) => {
+        if (!id) return;
+        setAudLoading(true);
+        try {
+            const success = await Api.deleteAudience(id, adminToken);
+            if (success) {
+                console.log("UI_SUCCESS: Audience deleted from local state (ID:", id, ")");
+                setAudiences(prev => prev.filter(aud => aud.id !== id));
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error("Failed to delete audience:", error);
+            return false;
+        } finally {
+            setAudLoading(false);
         }
     };
 
@@ -222,6 +268,6 @@ export const useContacts = (navigate) => {
         uiTags, setUiTags,
         fetchEnrichedData, fetchRawData, fetchAudiences,
         toggleLeadSelection, toggleModalLeadSelection,
-        handleFilter, handleSaveAudience, handleDeleteLead
+        handleFilter, handleSaveAudience, handleDeleteLead, handleDeleteAudience
     };
 };

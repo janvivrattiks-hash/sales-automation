@@ -1,9 +1,10 @@
 import React from 'react';
-import { Zap, Activity, CheckCircle2, CircleAlert, Lightbulb, Users } from 'lucide-react';
-import { getDeepField, renderData } from '../../utils/dataHelpers.jsx';
+import { Zap, Activity, CheckCircle2, CircleAlert, Lightbulb, Users, User, Mail, Phone, MapPin, Globe, Briefcase } from 'lucide-react';
+import { getDeepField, renderData, extractString } from '../../utils/dataHelpers.jsx';
+import Card from '../ui/Card';
 
-const SummaryTab = ({ summaryData, isLoadingSummary, icpScore, leadId, contactInfo }) => {
-    if (isLoadingSummary) {
+const SummaryTab = ({ summaryData, isLoadingSummary, poiDetails, isLoadingPoi, icpScore, leadId, contactInfo }) => {
+    if (isLoadingSummary || isLoadingPoi) {
         return (
             <div className="flex justify-center py-20">
                 <div className="flex flex-col items-center gap-4">
@@ -205,6 +206,27 @@ const SummaryTab = ({ summaryData, isLoadingSummary, icpScore, leadId, contactIn
                         <div className="bg-slate-50/30 p-5 rounded-2xl border border-slate-100/50">
                             <div className="text-slate-900 text-sm leading-relaxed">
                                 {renderData(landscape)}
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* 7. POI Details (Point of Interest) */}
+            {(() => {
+                const poi = poiDetails || getDeepField(contactInfo, ['poi_details', 'poi', 'points_of_interest']);
+                if (!poi) return null;
+                return (
+                    <div className="animate-in slide-in-from-bottom-4 duration-500 delay-500 p-6 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 bg-orange-50 text-orange-500 rounded-xl">
+                                <MapPin size={20} />
+                            </div>
+                            <h4 className="font-bold text-gray-900 text-base">Local Insights (POI)</h4>
+                        </div>
+                        <div className="bg-orange-50/30 p-5 rounded-2xl border border-orange-100/50">
+                            <div className="text-orange-900 text-sm leading-relaxed">
+                                {renderData(poi)}
                             </div>
                         </div>
                     </div>

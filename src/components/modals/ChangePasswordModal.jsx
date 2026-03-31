@@ -62,7 +62,7 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
             return;
         }
 
-        if (!user?.admin_id) {
+        if (!user?.id) {
             toast.error("User information not loaded.");
             return;
         }
@@ -75,7 +75,7 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
                 confirm_new_password: confirmPassword
             };
 
-            const result = await Api.changePassword(adminToken, user.admin_id, payload);
+            const result = await Api.changePassword(adminToken, user.id, payload);
             
             if (result) {
                 toast.success("Password updated successfully!");

@@ -1,7 +1,7 @@
 import React from 'react';
-import { Trash2, ArrowRight } from 'lucide-react';
+import { Trash2, ArrowRight, Loader2 } from 'lucide-react';
 
-const DeleteModal = ({ isOpen, onClose, type, data, onConfirm }) => {
+const DeleteModal = ({ isOpen, onClose, type, data, onConfirm, isLoading }) => {
     if (!isOpen) return null;
 
     const name = type === 'audience' ? data?.audiance_name : (data?.name || data?.BusinessName);
@@ -27,16 +27,27 @@ const DeleteModal = ({ isOpen, onClose, type, data, onConfirm }) => {
                     </div>
                     <div className="flex gap-3 pt-2">
                         <button
-                            className="flex-1 px-6 py-3.5 rounded-2xl border border-gray-100 text-xs font-bold text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all active:scale-95"
+                            className="flex-1 px-6 py-3.5 rounded-2xl border border-gray-100 text-xs font-bold text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all active:scale-95 disabled:opacity-50"
                             onClick={onClose}
+                            disabled={isLoading}
                         >
                             Cancel
                         </button>
                         <button
-                            className="flex-2 px-8 py-3.5 bg-red-500 hover:bg-red-600 text-white rounded-2xl text-xs font-bold shadow-xl shadow-red-100 transition-all active:scale-95 flex items-center justify-center gap-2"
+                            className="flex-2 px-8 py-3.5 bg-red-500 hover:bg-red-600 text-white rounded-2xl text-xs font-bold shadow-xl shadow-red-100 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                             onClick={() => onConfirm(data?.id || data?.result_id || data?.MobileNumber)}
+                            disabled={isLoading}
                         >
-                            Confirm <ArrowRight size={14} />
+                            {isLoading ? (
+                                <>
+                                    <Loader2 size={14} className="animate-spin" />
+                                    Deleting...
+                                </>
+                            ) : (
+                                <>
+                                    Confirm <ArrowRight size={14} />
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>

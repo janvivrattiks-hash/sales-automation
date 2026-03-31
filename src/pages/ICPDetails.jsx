@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { 
-    Edit3, 
-    Users, 
-    Target, 
-    Zap, 
-    ChevronRight, 
-    Star, 
-    MessageSquare, 
+import {
+    Edit3,
+    Users,
+    Target,
+    Zap,
+    ChevronRight,
+    Star,
+    MessageSquare,
     Building2,
     Sparkles,
     ShieldCheck,
@@ -28,11 +28,10 @@ const MetricCard = ({ title, value, trend, trendType, icon: Icon, iconColor }) =
         </div>
         <div className="flex items-end gap-3">
             <h3 className="text-3xl font-black text-gray-900 tracking-tight">{value}</h3>
-            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full mb-1.5 ${
-                trendType === 'up' ? 'bg-emerald-50 text-emerald-500' : 
-                trendType === 'down' ? 'bg-rose-50 text-rose-500' : 
-                'bg-gray-100 text-gray-500'
-            }`}>
+            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full mb-1.5 ${trendType === 'up' ? 'bg-emerald-50 text-emerald-500' :
+                    trendType === 'down' ? 'bg-rose-50 text-rose-500' :
+                        'bg-gray-100 text-gray-500'
+                }`}>
                 {trend}
             </span>
         </div>
@@ -129,7 +128,7 @@ const ICPDetails = () => {
                     <ChevronRight size={10} />
                     <span className="text-primary">{icp.icp_name}</span>
                 </div>
-                <button 
+                <button
                     onClick={() => navigate('/icp')}
                     className="flex items-center gap-2 text-xs font-black text-gray-400 hover:text-gray-900 transition-colors uppercase tracking-widest"
                 >
@@ -150,7 +149,7 @@ const ICPDetails = () => {
                         Profile configuration last synchronized recently
                     </p>
                 </div>
-                <Button 
+                <Button
                     className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black flex items-center gap-2 shadow-xl shadow-indigo-100 transition-all active:scale-95 text-xs uppercase tracking-widest"
                     onClick={() => navigate(`/create-icp/${id}`)}
                 >
@@ -161,37 +160,37 @@ const ICPDetails = () => {
 
             {/* Metrics Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <MetricCard 
-                    title="Total Leads" 
-                    value={metrics.total_leads || "0"} 
-                    trend="+0%" 
-                    trendType="neutral" 
-                    icon={Users} 
-                    iconColor="bg-blue-50 text-blue-500" 
+                <MetricCard
+                    title="Total Leads"
+                    value={metrics.total_leads || "0"}
+                    trend="+0%"
+                    trendType="neutral"
+                    icon={Users}
+                    iconColor="bg-blue-50 text-blue-500"
                 />
-                <MetricCard 
-                    title="Average Score" 
-                    value={`${metrics.average_score || "0"}%`} 
-                    trend="+5%" 
-                    trendType="up" 
-                    icon={ShieldCheck} 
-                    iconColor="bg-indigo-50 text-indigo-500" 
+                <MetricCard
+                    title="Average Score"
+                    value={`${metrics.average_score || "0"}%`}
+                    trend="+5%"
+                    trendType="up"
+                    icon={ShieldCheck}
+                    iconColor="bg-indigo-50 text-indigo-500"
                 />
-                <MetricCard 
-                    title="Matched Leads" 
-                    value={metrics.matched_leads || "0"} 
-                    trend="+0%" 
-                    trendType="neutral" 
-                    icon={Target} 
-                    iconColor="bg-purple-50 text-purple-500" 
+                <MetricCard
+                    title="Matched Leads"
+                    value={metrics.matched_leads || "0"}
+                    trend="+0%"
+                    trendType="neutral"
+                    icon={Target}
+                    iconColor="bg-purple-50 text-purple-500"
                 />
-                <MetricCard 
-                    title="AI Matching %" 
-                    value={metrics.matched_leads && metrics.total_leads ? `${Math.round((metrics.matched_leads / metrics.total_leads) * 100)}%` : "0%"} 
-                    trend="-2%" 
-                    trendType="down" 
-                    icon={Zap} 
-                    iconColor="bg-amber-50 text-amber-500" 
+                <MetricCard
+                    title="AI Matching %"
+                    value={metrics.matched_leads && metrics.total_leads ? `${Math.round((metrics.matched_leads / metrics.total_leads) * 100)}%` : "0%"}
+                    trend="-2%"
+                    trendType="down"
+                    icon={Zap}
+                    iconColor="bg-amber-50 text-amber-500"
                 />
             </div>
 
@@ -221,11 +220,11 @@ const ICPDetails = () => {
                         <ConfigItem label="Minimum Google Rating">
                             <div className="flex items-center gap-2 text-amber-400">
                                 <div className="flex">
-                                    {[1,2,3,4,5].map(i => (
-                                        <Star 
-                                            key={i} 
-                                            size={16} 
-                                            className={i <= Math.floor(icp.min_google_rating || 4) ? "fill-amber-400" : "text-gray-200"} 
+                                    {[1, 2, 3, 4, 5].map(i => (
+                                        <Star
+                                            key={i}
+                                            size={16}
+                                            className={i <= Math.floor(icp.min_google_rating || 4) ? "fill-amber-400" : "text-gray-200"}
                                         />
                                     ))}
                                 </div>
@@ -259,15 +258,6 @@ const ICPDetails = () => {
                             </div>
                         </ConfigItem>
 
-                        {/* Company Size Range */}
-                        <ConfigItem label="Company Size Range">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-indigo-50 text-indigo-500 rounded-xl">
-                                    <Building2 size={18} />
-                                </div>
-                                <span className="font-black text-gray-900 text-lg italic tracking-tight underline decoration-indigo-200 decoration-4 underline-offset-2">50 - 500 Employees</span>
-                            </div>
-                        </ConfigItem>
                     </div>
 
                     {/* AI Matching Instructions */}

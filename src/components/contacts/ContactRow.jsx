@@ -1,25 +1,25 @@
 import React from 'react';
-import { Mail, Phone, Globe, Loader2, Eye, Trash2, Facebook, Instagram, Linkedin, Twitter, Youtube } from 'lucide-react';
+import { Mail, Phone, Globe, Loader2, Eye, Trash2, Facebook, Instagram, Linkedin, Twitter, Youtube, MapPin } from 'lucide-react';
 import StarRating from '../ui/StarRating';
-import { 
-    deepGet, 
-    extractStr, 
-    scanSocials, 
-    getSocialIcon, 
-    getHostname 
+import {
+    deepGet,
+    extractStr,
+    scanSocials,
+    getSocialIcon,
+    getHostname
 } from '../../utils/contactUtils.jsx';
 
-const ContactRow = ({ 
-    contact, 
-    idx, 
-    isEnriched, 
-    selectedLeads, 
-    toggleLeadSelection, 
-    handleViewLead, 
+const ContactRow = ({
+    contact,
+    idx,
+    isEnriched,
+    selectedLeads,
+    toggleLeadSelection,
+    handleViewLead,
     handleViewRawContact,
-    setDeleteModal, 
-    viewingId, 
-    deletingId 
+    setDeleteModal,
+    viewingId,
+    deletingId
 }) => {
     const leadId = contact.id || contact.result_id;
     const isSelected = selectedLeads.includes(leadId);
@@ -32,7 +32,7 @@ const ContactRow = ({
 
         const emailRaw = deepGet(contact, ['email', 'Email', 'email_address', 'email_addresses', 'emails']) ||
             contact.email || contact.Email || contact.emails;
-        
+
         let emailsList = [];
         if (Array.isArray(emailRaw)) emailsList = emailRaw.flatMap(e => typeof e === 'string' ? e.split(',').map(x => x.trim()) : []).filter(Boolean);
         else if (typeof emailRaw === 'object' && emailRaw !== null) emailsList = Object.values(emailRaw).filter(e => typeof e === 'string' && e.trim());
@@ -74,22 +74,12 @@ const ContactRow = ({
                             <Phone size={12} className="text-gray-400 shrink-0" />
                             <span className="truncate max-w-[150px]">{phoneStr}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
-                            <Mail size={12} className="text-gray-400 shrink-0" />
-                            {primaryEmail !== 'N/A' ? (
-                                <a href={`mailto:${primaryEmail}`} className="truncate max-w-[150px] hover:text-primary transition-colors underline-offset-4 hover:underline">
-                                    {primaryEmail}
-                                </a>
-                            ) : (
-                                <span>N/A</span>
-                            )}
-                        </div>
                     </div>
                 </td>
                 <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                     <div className="flex flex-col gap-1.5 min-w-[120px]">
                         {extractedSocials.length > 0 ? (
-                            extractedSocials.slice(0, 3).map((link, i) => (
+                            extractedSocials.map((link, i) => (
                                 <a key={i} href={link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs font-bold text-gray-600 hover:text-primary transition-colors group/soc" title={`Visit ${getHostname(link)}`}>
                                     {getSocialIcon(link)}
                                     <span className="truncate max-w-[120px]">{getHostname(link)}</span>
@@ -97,9 +87,6 @@ const ContactRow = ({
                             ))
                         ) : (
                             <span className="text-[10px] font-bold text-gray-300">No social links</span>
-                        )}
-                        {extractedSocials.length > 3 && (
-                            <span className="text-[10px] font-bold text-gray-400">+{extractedSocials.length - 3} more</span>
                         )}
                     </div>
                 </td>

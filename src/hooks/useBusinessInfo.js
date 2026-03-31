@@ -49,7 +49,7 @@ export const useBusinessInfo = () => {
         const file = e.target.files[0];
         if (!file) return;
 
-        if (!user?.admin_id) {
+        if (!user?.id) {
             toast.error("User information not loaded.");
             return;
         }
@@ -68,8 +68,8 @@ export const useBusinessInfo = () => {
         setIsUploadingLogo(true);
         try {
             const result = businessData.logoUrl 
-                ? await Api.updateProfilePicture(user.admin_id, file)
-                : await Api.uploadProfilePicture(user.admin_id, file);
+                ? await Api.updateProfilePicture(user.id, file)
+                : await Api.uploadProfilePicture(user.id, file);
 
             if (result && (result.url || result.file_url || result.logo_url)) {
                 setBusinessData(prev => ({
@@ -92,14 +92,14 @@ export const useBusinessInfo = () => {
                 return;
             }
 
-            if (!user?.admin_id) return;
+            if (!user?.id) return;
 
             try {
                 setIsLoading(true);
                 const [businessRes, aiRes, logoRes] = await Promise.all([
-                    Api.getBusinessInfo(adminToken, user.admin_id),
-                    Api.getAiPreference(adminToken, user.admin_id),
-                    Api.getProfilePicture(user.admin_id)
+                    Api.getBusinessInfo(adminToken, user.id),
+                    Api.getAiPreference(adminToken, user.id),
+                    Api.getProfilePicture(user.id)
                 ]);
 
                 if (businessRes) {
@@ -143,7 +143,7 @@ export const useBusinessInfo = () => {
         };
 
         fetchData();
-    }, [navigate, adminToken, user?.admin_id]);
+    }, [navigate, adminToken, user?.id]);
 
     return {
         businessData,

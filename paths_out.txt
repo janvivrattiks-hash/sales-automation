@@ -1,0 +1,88 @@
+{
+  "get": {
+    "tags": [
+      "Admin Profile Picture"
+    ],
+    "summary": "Get Profile Picture",
+    "description": "Retrieve the profile image binary directly.",
+    "operationId": "get_profile_picture_admin_business_information_profile_picture__admin_id__get",
+    "parameters": [
+      {
+        "name": "admin_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid",
+          "description": "The UUID of the admin",
+          "title": "Admin Id"
+        },
+        "description": "The UUID of the admin"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Successful Response",
+        "content": {
+          "application/json": {
+            "schema": {}
+          }
+        }
+      },
+      "422": {
+        "description": "Validation Error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/HTTPValidationError"
+            }
+          }
+        }
+      }
+    }
+  },
+  "delete": {
+    "tags": [
+      "Admin Profile Picture"
+    ],
+    "summary": "Delete Profile Picture",
+    "description": "Delete the profile image from the database.",
+    "operationId": "delete_profile_picture_admin_business_information_profile_picture__admin_id__delete",
+    "parameters": [
+      {
+        "name": "admin_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid",
+          "description": "The UUID of the admin",
+          "title": "Admin Id"
+        },
+        "description": "The UUID of the admin"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Successful Response",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ResponseModel"
+            }
+          }
+        }
+      },
+      "422": {
+        "description": "Validation Error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/HTTPValidationError"
+            }
+          }
+        }
+      }
+    }
+  }
+}

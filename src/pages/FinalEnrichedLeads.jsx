@@ -100,14 +100,17 @@ const FinalEnrichedLeads = () => {
 
     // ── Save Audience ─────────────────────────────────────────────────────────
     const handleSaveAudience = async () => {
+        const ids = (filteredLeads || []).map(l => l.id || l.result_id).filter(Boolean);
         const payload = {
             audiance_name: audienceData.audiance_name,
             discription: audienceData.discription,
             icp: audienceData.icp,
-            tag: uiTags.join(', ')
+            tag: uiTags.join(', '),
+            business_ids: ids
         };
         try {
             const response = await Api.saveAudience(payload, adminToken);
+            console.log("Audience saved successfully with IDs:", ids.length);
             if (response) {
                 setIsModalOpen(false);
                 setAudienceData({ audiance_name: '', discription: '', icp: '', tag: '' });

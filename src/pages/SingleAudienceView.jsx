@@ -2,7 +2,7 @@ import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { 
+import {
     ExternalLink,
     Linkedin,
     Twitter,
@@ -27,14 +27,18 @@ import useSingleAudience from '../hooks/useSingleAudience.jsx';
 
 const SingleAudienceView = () => {
     const location = useLocation();
-    const { leadData, fromTab } = location.state || {};
-    const leadId = leadData?.id || leadData?._id;
+    // AudienceDetails navigates with { singleLead, audience } — support both keys
+    const leadData = location.state?.singleLead || location.state?.leadData || null;
+    const fromTab = location.state?.fromTab || null;
+    const leadId = leadData?.id || leadData?._id || leadData?.result_id;
 
     const {
         activeTab,
         setActiveTab,
         summaryData,
         isLoadingSummary,
+        poiDetails,
+        isLoadingPoi,
         messagesData,
         isLoadingMessages,
         activityLogs,
@@ -43,6 +47,7 @@ const SingleAudienceView = () => {
         isLoadingNotes,
         tasksList,
         isLoadingTasks,
+        isLoadingContactInfo,
         isAddingNote, setIsAddingNote,
         noteTitle, setNoteTitle,
         noteContent, setNoteContent,
@@ -71,18 +76,18 @@ const SingleAudienceView = () => {
     };
 
     const tabs = [
-        { id: 'summary', label: 'Strategy Summary' },
-        { id: 'messages', label: 'Outreach Scripts' },
-        { id: 'activity', label: 'Recent Activity' },
-        { id: 'notes', label: 'Personal Notes' },
-        { id: 'tasks', label: 'Tasks' },
+        { id: 'summary', label: 'Summary' },
+        { id: 'messages', label: 'Message & Strategy' },
+        { id: 'activity', label: 'Activity' },
+        { id: 'notes', label: 'Notes & Comments' },
+        { id: 'tasks', label: 'Tasks & Actions' },
     ];
 
     return (
         <div className="min-h-screen bg-[#F8FAFC]">
             <div className="max-w-[1600px] mx-auto p-4 md:p-8 space-y-8">
-                
-                <SingleAudienceHeader 
+
+                <SingleAudienceHeader
                     contactName={derivedData.contactName}
                     businessName={derivedData.businessName}
                     audienceName={derivedData.audienceName}
@@ -96,7 +101,7 @@ const SingleAudienceView = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                     {/* Left Column: Sidebar */}
                     <div className="lg:col-span-3 space-y-6">
-                        <SingleAudienceSidebar 
+                        <SingleAudienceSidebar
                             businessName={derivedData.businessName}
                             contactName={derivedData.contactName}
                             category={derivedData.category}
@@ -107,7 +112,8 @@ const SingleAudienceView = () => {
                             socialLinks={derivedData.socialLinks}
                             ratingVal={derivedData.ratingVal}
                             source={derivedData.source}
-                            leadOwner={derivedData.owner}
+                            leadOwner={derivedData.leadOwner}
+                            isLoadingContactInfo={isLoadingContactInfo}
                             renderSocialIcon={renderSocialIcon}
                             getHostname={getHostname}
                         />
@@ -115,15 +121,17 @@ const SingleAudienceView = () => {
 
                     {/* Right Column: Dynamic Content Tabs */}
                     <div className="lg:col-span-9 h-[calc(100vh-250px)] min-h-[600px]">
-                        <SingleAudienceTabs 
+                        <SingleAudienceTabs
                             tabs={tabs}
                             activeTab={activeTab}
                             setActiveTab={setActiveTab}
                         >
                             {activeTab === 'summary' && (
-                                <SummaryTab 
+                                <SummaryTab
                                     summaryData={summaryData}
                                     isLoadingSummary={isLoadingSummary}
+                                    poiDetails={poiDetails}
+                                    isLoadingPoi={isLoadingPoi}
                                     icpScore={derivedData.icpScore}
                                     leadId={leadId}
                                     contactInfo={leadData}
@@ -131,7 +139,7 @@ const SingleAudienceView = () => {
                             )}
 
                             {activeTab === 'messages' && (
-                                <MessagesTab 
+                                <MessagesTab
                                     messagesData={messagesData}
                                     isLoadingMessages={isLoadingMessages}
                                     contactName={derivedData.contactName}
@@ -142,14 +150,14 @@ const SingleAudienceView = () => {
                             )}
 
                             {activeTab === 'activity' && (
-                                <ActivityTab 
+                                <ActivityTab
                                     activityLogs={activityLogs}
                                     isLoadingActivity={isLoadingActivity}
                                 />
                             )}
 
                             {activeTab === 'notes' && (
-                                <NotesTab 
+                                <NotesTab
                                     notesList={notesList}
                                     isLoadingNotes={isLoadingNotes}
                                     isAddingNote={isAddingNote}
@@ -165,7 +173,7 @@ const SingleAudienceView = () => {
                             )}
 
                             {activeTab === 'tasks' && (
-                                <TasksTab 
+                                <TasksTab
                                     tasksList={tasksList}
                                     isLoadingTasks={isLoadingTasks}
                                     isAddingTask={isAddingTask}

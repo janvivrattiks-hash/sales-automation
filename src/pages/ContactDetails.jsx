@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Users } from 'lucide-react';
 import Button from '../components/ui/Button';
-import Card from '../components/ui/Card';
 
 // Data Helpers
 import { getDeepField } from '../utils/contactDataHelpers.jsx';
@@ -18,116 +17,131 @@ const ContactDetails = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Get base lead data from route
+    // Initial lead data from route
     let originalLead = location.state?.singleLead;
     let lead = originalLead;
 
-    // Contact details parser
+    // Contact details parser & heuristic flattener
     try {
         while (typeof lead === 'string') {
             try { lead = JSON.parse(lead); } catch (e) { break; }
         }
         if (Array.isArray(lead)) lead = lead[0];
 
-        // Deep recursive merge to flatten everything to the top level
-        const flattenObj = (ob) => {
-            let result = {};
-            for (const i in ob) {
-                if ((typeof ob[i]) === 'object' && !Array.isArray(ob[i]) && ob[i] !== null) {
-                    const temp = flattenObj(ob[i]);
-                    for (const j in temp) { result[j] = temp[j]; }
-                } else {
-                    result[i] = ob[i];
+        // HEURISTIC SUPER-SCANNER: Finds metrics anywhere in the payload
+        const deepExtract = (ob, result = {}) => {
+            if (!ob || typeof ob !== 'object') return result;
+            
+            if (Array.isArray(ob)) {
+                ob.forEach(item => deepExtract(item, result));
+                return result;
+            }
+            
+            for (const key in ob) {
+                const val = ob[key];
+                const lowKey = key.toLowerCase();
+                
+                // --- SUPER SCANNER for Rating ---
+                if ((lowKey.includes('rating') || lowKey.includes('star')) && !lowKey.includes('id') && val !== null && val !== undefined) {
+                    let extracted = null;
+                    if (typeof val === 'number' || (typeof val === 'string' && !isNaN(parseFloat(val)))) {
+                        extracted = val;
+                    } else if (typeof val === 'object') {
+                        // Extract from nested object if present
+                        extracted = val.value || val.rating || val.stars || val.avg || val.score || val.google_rating;
+                    }
+                    
+                    if (extracted !== null) {
+                        const parsed = parseFloat(extracted);
+                        if (!isNaN(parsed) && (parsed > 0 || !result['Rating'])) {
+                            result['Rating'] = extracted;
+                        }
+                    }
+                }
+                
+                // --- SUPER SCANNER for Reviews ---
+                if ((lowKey.includes('review') || lowKey.includes('total_review') || lowKey.includes('reviewcount')) && !lowKey.includes('id') && val !== null && val !== undefined) {
+                    let extracted = null;
+                    if (typeof val === 'number' || (typeof val === 'string' && !isNaN(parseInt(val)))) {
+                        extracted = val;
+                    } else if (typeof val === 'object') {
+                        extracted = val.count || val.total || val.reviews || val.review_count || val.value || val.google_reviews;
+                    }
+                    
+                    if (extracted !== null) {
+                        const parsed = parseInt(extracted);
+                        if (!isNaN(parsed) && (parsed > 0 || !result['Reviews'])) {
+                            result['Reviews'] = extracted;
+                        }
+                    }
+                }
+
+                if (val && typeof val === 'object') {
+                    deepExtract(val, result);
+                    result[key] = val;
+                } else if (val !== null && val !== undefined) {
+                    result[key] = val;
                 }
             }
             return result;
         };
 
         if (lead && typeof lead === 'object') {
-            lead = { ...lead, ...flattenObj(lead) };
+            lead = { ...lead, ...deepExtract(lead) };
         }
     } catch (e) {
-        console.error("Error flattening lead payload:", e);
+        console.error("Error parsing lead data:", e);
     }
 
-    // Ensure lead falls back safely
     const finalLead = lead || originalLead || {};
 
-    useEffect(() => {
-        window.scrollTo(0, 0);
-    }, []);
+    useEffect(() => { window.scrollTo(0, 0); }, []);
 
     if (!finalLead || Object.keys(finalLead).length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 space-y-6 py-20">
-                <div className="bg-gray-50 p-6 rounded-full">
-                    <Users size={48} className="text-gray-300" />
-                </div>
-                <div className="text-center">
-                    <p className="text-lg font-bold text-gray-900">No Contact Data Found</p>
-                    <p className="text-sm text-gray-500 mt-1">Please select a contact from the management page.</p>
-                </div>
-                <Button onClick={() => navigate('/contacts')} className="px-8 font-bold">
-                    Back to Contacts
-                </Button>
+            <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 py-20">
+                <Button onClick={() => navigate('/contacts')} className="px-8 font-bold">Back to Contacts</Button>
             </div>
         );
     }
 
-    // Refined Extraction Logic for Enriched Data
-    const getEmailsArray = () => {
-        const found = getDeepField(finalLead, ['email', 'Email', 'emails_found', 'emails', 'email_addresses', 'contact_emails', 'personal_email', 'work_email', 'email1', 'email2']);
-        if (Array.isArray(found) && found.length > 0) return found.map(e => String(e).trim()).filter(Boolean);
-        if (typeof found === 'string') return found.split(',').map(s => s.trim()).filter(Boolean);
-        return [];
-    };
-    const emailsList = getEmailsArray();
-    const primaryEmail = emailsList.length > 0 ? emailsList[0] : 'N/A';
+    // EXTRACTION WITH ROBUST ALIAS LISTS
+    const phoneStr = extractStr(getDeepField(finalLead, [
+        'contact_mobile', 'mobileNumber', 'contactMobile', 'mobile_no', 'phone_number', 'phone', 
+        'mobile', 'phoneNumber', 'contact_number', 'phones', 'Phone', 'telephone', 'Mobile', 'MobileNumber'
+    ]) || 'N/A');
 
-    const phoneStr = extractStr(getDeepField(finalLead, ['phone_number', 'phone', 'mobile', 'contact_number', 'Phone', 'MobileNumber', 'contact_no', 'work_phone', 'mobile_phone', 'phone1', 'phone2', 'contact_phone', 'telephone', 'WorkPhone', 'contact_mobile', 'mobile_no']) || 'N/A');
+    const businessName = extractStr(getDeepField(finalLead, [
+        'business_name', 'BusinessName', 'name', 'company_name', 'Company', 'brand_name', 'org_name', 'Business_Name'
+    ]) || 'Contact Detail');
 
-    const businessName = extractStr(
-        getDeepField(finalLead, ['business_name', 'BusinessName', 'name', 'company_name', 'Company', 'title', 'brand_name', 'organization_name', 'org_name', 'trade_name', 'Business_Name']) || 'Contact Detail'
-    );
+    // Rating Identification
+    const ratingValRaw = getDeepField(finalLead, [
+        'Rating', 'rating', 'google_rating', 'stars', 'star_rating', 'avg_rating', 'googleRating', 
+        'score', 'rating_value', 'average_rating', 'google_map_rating', 'google_maps_rating'
+    ]);
+    const ratingVal = isNaN(parseFloat(ratingValRaw)) ? 0 : parseFloat(ratingValRaw);
 
-    const categoryStr = extractStr(
-        getDeepField(finalLead, ['category', 'Industry', 'industry', 'niche', 'vertical', 'sector']) || 'Uncategorized'
-    );
+    // Reviews Identification
+    const reviewsRaw = getDeepField(finalLead, [
+        'Reviews', 'reviews', 'review_count', 'total_reviews', 'user_ratings_total', 'reviews_count', 
+        'totalReviews', 'google_review_count', 'review_total', 'number_of_reviews', 'total_review_count', 
+        'reviews_total', 'reviewCount', 'reviewsCount', 'google_reviews'
+    ]) || 0;
 
-    const addressStr = extractStr(
-        getDeepField(finalLead, ['address', 'Address', 'location', 'full_address', 'Full_Address', 'formatted_address']) || 'N/A'
-    );
-
-    const websiteStr = extractStr(
-        getDeepField(finalLead, ['website', 'Website', 'website_url', 'url', 'domain', 'site_url']) || null,
-        null
-    );
-
-    const ratingParsed = parseFloat(getDeepField(finalLead, ['rating', 'Rating', 'ratting', 'google_rating', 'star_rating', 'review_rating', 'score', 'stars', 'rating_value', 'average_rating', 'google_map_rating', 'google_maps_rating']));
-    const ratingVal = isNaN(ratingParsed) ? 0 : ratingParsed;
-    const reviewsRaw = getDeepField(finalLead, ['reviews', 'Reviews', 'review_count', 'total_reviews', 'user_ratings_total', 'reviews_count', 'review_total', 'number_of_reviews', 'total_review_count', 'reviewCount', 'reviewsCount']) || 0;
-
-    const ownerName = extractStr(getDeepField(finalLead, ['full_name', 'contact_name', 'contact_person', 'name', 'OwnerName', 'owner_name', 'Owner', 'assigned_to', 'owner', 'first_name', 'last_name', 'manager', 'rep_name', 'sales_rep', 'ContactPerson', 'contactPerson', 'ownerName']) || 'N/A');
-
-    // Safety check: is the parsed data fundamentally empty? Create a raw dump for debugging just in case.
-    const isDataEmpty = !businessName || businessName === 'Contact Detail' || businessName === 'N/A';
+    const emailsField = getDeepField(finalLead, ['email', 'Email', 'emails', 'emails_found', 'contact_emails']);
+    const emailsList = Array.isArray(emailsField) ? emailsField : (typeof emailsField === 'string' ? emailsField.split(',').map(s => s.trim()) : []);
+    const primaryEmail = emailsList.length > 0 ? emailsList[0] : (finalLead.email || finalLead.Email || 'N/A');
+    const categoryStr = extractStr(getDeepField(finalLead, ['category', 'industry', 'Industry', 'niche', 'vertical']) || 'Uncategorized');
+    const addressStr = extractStr(getDeepField(finalLead, ['address', 'location', 'Address', 'full_address', 'Location', 'full_location']) || 'N/A');
+    const websiteStr = extractStr(getDeepField(finalLead, ['website', 'Website', 'url', 'website_url', 'domain', 'site_url']) || null, null);
+    const ownerName = extractStr(getDeepField(finalLead, ['full_name', 'contact_person', 'name', 'owner_name', 'rep_name', 'OwnerName', 'ContactPerson']) || 'N/A');
     const extractedSocials = scanSocials(finalLead);
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-16">
-            <ContactHeader 
-                businessName={businessName} 
-                categoryStr={categoryStr} 
-                navigate={navigate} 
-                location={location} 
-            />
-
-            <ContactStats 
-                ratingVal={ratingVal} 
-                reviewsRaw={reviewsRaw} 
-                ownerName={ownerName} 
-            />
-
+            <ContactHeader businessName={businessName} categoryStr={categoryStr} navigate={navigate} location={location} />
+            <ContactStats ratingVal={ratingVal} reviewsRaw={reviewsRaw} ownerName={ownerName} />
             <ContactInfoCard
                 businessName={businessName}
                 phoneStr={phoneStr}
@@ -140,17 +154,7 @@ const ContactDetails = () => {
                 reviewsRaw={reviewsRaw}
                 ratingVal={ratingVal}
             />
-
             <ContactInsights finalLead={finalLead} />
-
-            {/* RAW PAYLOAD DEBUGGER (only visible if we couldn't parse the name) */}
-            {isDataEmpty && (
-                <Card title="Raw Data Payload (Debug Mode)" subtitle="This appears because we couldn't find the business name automatically.">
-                    <pre className="mt-4 p-4 bg-gray-900 text-green-400 rounded-xl text-xs overflow-auto max-h-[400px]">
-                        {JSON.stringify(originalLead || lead, null, 2)}
-                    </pre>
-                </Card>
-            )}
         </div>
     );
 };

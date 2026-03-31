@@ -71,7 +71,7 @@ const EnrichedLeadRow = ({ lead, index, leads, queryInfo, navigate }) => {
             <td className="px-8 py-5">
                 <div className="flex flex-col gap-1.5 min-w-[140px]">
                     {extractedSocials.length > 0 ? (
-                        extractedSocials.slice(0, 3).map((link, i) => (
+                        extractedSocials.map((link, i) => (
                             <a key={i} href={link} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-[11px] font-bold text-gray-600 hover:text-primary transition-colors">
                                 <span className={getSocialColor(link)}>{getSocialIcon(link)}</span>
                                 <span className="truncate max-w-[100px]">{getHostname(link)}</span>
@@ -79,9 +79,6 @@ const EnrichedLeadRow = ({ lead, index, leads, queryInfo, navigate }) => {
                         ))
                     ) : (
                         <span className="text-[10px] font-bold text-gray-300 italic">No social links</span>
-                    )}
-                    {extractedSocials.length > 3 && (
-                        <span className="text-[10px] font-bold text-gray-400">+{extractedSocials.length - 3} more</span>
                     )}
                 </div>
             </td>

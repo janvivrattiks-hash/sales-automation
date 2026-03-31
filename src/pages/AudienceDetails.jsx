@@ -9,12 +9,59 @@ import AudienceHeader from '../components/audienceDetails/AudienceHeader';
 import AudienceStats from '../components/audienceDetails/AudienceStats';
 import AudienceTable from '../components/audienceDetails/AudienceTable';
 
+// --- FIELD SCANNER UTILITIES ---
+const PHONE_FIELDS = ['phone', 'MobileNumber', 'phone_number', 'mobile', 'contact_no', 'telephone', 'contact_number', 'mobilenumber', 'cell', 'tel', 'office', 'whatsapp', 'biz_phone', 'business_phone', 'Contact'];
+const EMAIL_FIELDS = ['email', 'Email', 'email_address', 'contact_email', 'work_email', 'primary_email', 'email_addresses', 'biz_email', 'business_email'];
+const RATING_FIELDS = ['rating', 'Rating', 'stars', 'average_rating', 'user_ratings_total', 'RatingValue', 'review_score'];
+const WEBSITE_FIELDS = ['website', 'Website', 'url', 'site_url', 'business_url', 'link', 'domain'];
+
+const findIn = (obj, fields) => {
+    if (!obj || typeof obj !== 'object') return null;
+    // Direct match
+    for (const f of fields) {
+        if (obj[f] && typeof obj[f] === 'string' && obj[f].trim()) return obj[f].trim();
+        if (obj[f] && typeof obj[f] === 'number') return String(obj[f]);
+    }
+    // Deep match (scan one level down if it's a 'data' or 'results' wrapper)
+    const wrappers = ['data', 'results', 'lead', 'contact', 'business_information', 'business_info', 'biz_info', 'business'];
+    for (const w of wrappers) {
+        if (obj[w] && typeof obj[w] === 'object') {
+            const nested = findIn(obj[w], fields);
+            if (nested) return nested;
+        }
+    }
+    // Array scan
+    if (Array.isArray(obj.email_addresses) && fields === EMAIL_FIELDS) return obj.email_addresses[0];
+    return null;
+};
+
+const normalizeLead = (lead) => {
+    if (!lead) return lead;
+    const phone = findIn(lead, PHONE_FIELDS) || 'N/A';
+    const email = findIn(lead, EMAIL_FIELDS) || 'N/A';
+    const website = findIn(lead, WEBSITE_FIELDS) || '';
+    const rating = findIn(lead, RATING_FIELDS) || lead.rating || 0;
+
+    return {
+        ...lead,
+        phone,
+        MobileNumber: phone,
+        email,
+        Email: email,
+        website,
+        Website: website,
+        rating: Number(rating),
+        Rating: Number(rating)
+    };
+};
+
 const AudienceDetails = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { adminToken } = useApp();
     const [viewingId, setViewingId] = useState(null);
     const [leads, setLeads] = useState([]);
+    const [selectedLeads, setSelectedLeads] = useState([]);
     const [loading, setLoading] = useState(true);
 
     const [searchMetadata, setSearchMetadata] = useState({
@@ -38,30 +85,26 @@ const AudienceDetails = () => {
     const fetchAudienceData = async () => {
         setLoading(true);
         try {
-            console.log("FETCH_AUDIENCE_DATA_START: audience", audience);
+            const id = audience.id || audience.result_id;
+            console.log("FETCH_AUDIENCE_DETAILS_START: id", id);
 
-            // 0. Check for leads passed in navigation state (highest priority)
-            let baseLeads = location.state?.selectedLeadsData || audience.leads || audience.contacts || [];
-            console.log("INITIAL_LEADS_COUNT:", baseLeads.length);
+            // 1. Fetch full audience details directly from API
+            const [detailedAudience, recentActivities] = await Promise.all([
+                Api.getAudienceDetails(id, adminToken),
+                Api.getRecent(adminToken)
+            ]);
 
-            // 1. Fetch Raw Data (Recent Searches) for metadata matching
-            const recentActivities = await Api.getRecent(adminToken);
+            // 2. Extract leads from the detailed audience response
+            let baseLeads = location.state?.selectedLeadsData || 
+                            detailedAudience?.leads || 
+                            detailedAudience?.contacts || 
+                            detailedAudience?.results || 
+                            audience.leads || 
+                            audience.contacts || [];
+            
+            console.log("BASE_LEADS_FETCHED:", baseLeads.length);
 
-            // 1b. Fetch Enrichment Data if audience is enriched (MANDATORY per user request)
-            const isAudienceEnriched = (audience?.tag || '').toLowerCase().includes('enriched') || location.state?.activeTab === 'enriched';
-            let enrichmentData = [];
-            if (isAudienceEnriched) {
-                console.log("FETCHING_ENRICHMENT_DATA...");
-                try {
-                    const enrichmentResponse = await Api.getEnrichment(adminToken);
-                    // Handle different response formats
-                    enrichmentData = Array.isArray(enrichmentResponse) ? enrichmentResponse : (enrichmentResponse?.results || enrichmentResponse?.data || []);
-                    console.log("ENRICHMENT_DATA_FETCHED:", enrichmentData.length);
-                } catch (err) {
-                    console.error("Failed to fetch enrichment data:", err);
-                }
-            }
-
+            // 3. Process Raw Activity metadata for City/Area fallbacks
             const allRawLeads = recentActivities?.flatMap(activity => {
                 const qName = activity.search_details?.niche_or_keyword || activity.query_name || activity.search_details?.query || '';
                 return (activity.results || []).map(lead => ({
@@ -74,96 +117,47 @@ const AudienceDetails = () => {
                 }));
             }) || [];
 
-            // 2. Identify corresponding Search Activity for metadata
-            const searchName = (audience.audiance_name || '').toLowerCase();
+            // 4. Update Search Metadata
+            const searchName = (audience.audiance_name || detailedAudience?.audiance_name || '').toLowerCase();
             const matchedActivity = recentActivities?.find(activity => {
                 const activityQuery = (activity.search_details?.niche_or_keyword || activity.query_name || activity.search_details?.query || '').toLowerCase();
                 return activityQuery.includes(searchName) || searchName.includes(activityQuery);
             });
 
-            if (matchedActivity) {
-                setSearchMetadata({
-                    query: matchedActivity.search_details?.niche_or_keyword || matchedActivity.query_name || matchedActivity.search_details?.query || audience.audiance_name || 'N/A',
-                    city: matchedActivity.search_details?.location || matchedActivity.search_details?.city || audience.city || 'Any',
-                    area: matchedActivity.search_details?.area || audience.area || 'Any'
-                });
-            } else {
-                setSearchMetadata({
-                    query: audience.audiance_name || 'N/A',
-                    city: audience.city || 'Any',
-                    area: audience.area || 'Any'
-                });
-            }
-
-            // 3. Finalize leads list
-            let finalLeads = baseLeads;
-
-            // If no leads passed in, try to filter raw leads by audience name/query (original fallback)
-            if (finalLeads.length === 0) {
-                if (isAudienceEnriched && enrichmentData.length > 0) {
-                    finalLeads = [...enrichmentData];
-                } else {
-                    finalLeads = allRawLeads.filter(lead => {
-                        const leadQuery = (lead.queryValue || '').toLowerCase();
-                        return leadQuery.includes(searchName) || searchName.includes(leadQuery);
-                    });
-                }
-            }
-
-            // 4. Merge Enrichment Data if necessary
-            if (isAudienceEnriched && enrichmentData.length > 0) {
-                finalLeads = finalLeads.map(lead => {
-                    const leadId = lead.id || lead.result_id;
-                    const enrichedLead = enrichmentData.find(el => (el.id || el.result_id) === leadId);
-                    return enrichedLead ? { ...lead, ...enrichedLead } : lead;
-                });
-            }
-
-            // 5. De-duplicate and set
-            const uniqueLeads = [];
-            const seenIds = new Set();
-            finalLeads.forEach(lead => {
-                if (!lead) return;
-
-                const id = lead.id || lead.result_id || null;
-
-                // Identity 2: Normalized Name + Normalized Address
-                const rawName = lead.name || lead.BusinessName || lead.business_name || lead.Business_Name || '';
-                const rawAddr = lead.address || lead.Address || lead.full_address || '';
-                const normName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '');
-                const normAddr = rawAddr.toLowerCase().replace(/[^a-z0-9]/g, '');
-                const nameAddrKey = (normName && normAddr) ? `na-${normName}-${normAddr}` : null;
-
-                // Identity 3: Normalized Phone
-                const rawPhone = String(lead.mobile || lead.MobileNumber || lead.phone || '');
-                const normPhone = rawPhone.replace(/\D/g, '');
-                const phoneKey = (normPhone && normPhone.length >= 8) ? `ph-${normPhone}` : null;
-
-                // Identity 4: Email
-                const rawEmail = lead.email || lead.Email || '';
-                const emailKey = rawEmail ? `em-${rawEmail.toLowerCase().trim()}` : null;
-
-                // Identity 5: Aggressive Name Fallback (Deduplicates scraped identical businesses)
-                const nameKey = (isAudienceEnriched && normName.length > 2) ? `name-${normName}` : null;
-
-                const isDuplicate = (id && seenIds.has(id)) ||
-                    (nameAddrKey && seenIds.has(nameAddrKey)) ||
-                    (phoneKey && seenIds.has(phoneKey)) ||
-                    (emailKey && seenIds.has(emailKey)) ||
-                    (nameKey && seenIds.has(nameKey));
-
-                if (!isDuplicate) {
-                    if (id) seenIds.add(id);
-                    if (nameAddrKey) seenIds.add(nameAddrKey);
-                    if (phoneKey) seenIds.add(phoneKey);
-                    if (emailKey) seenIds.add(emailKey);
-                    if (nameKey) seenIds.add(nameKey);
-
-                    lead.id = id || nameAddrKey || phoneKey || emailKey || nameKey || `lead-${Date.now()}-${Math.random()}`; // Ensure consistent ID
-                    uniqueLeads.push(lead);
-                }
+            setSearchMetadata({
+                query: matchedActivity?.search_details?.niche_or_keyword || matchedActivity?.query_name || matchedActivity?.search_details?.query || audience.audiance_name || 'N/A',
+                city: matchedActivity?.search_details?.location || matchedActivity?.search_details?.city || audience.city || 'Any',
+                area: matchedActivity?.search_details?.area || audience.area || 'Any'
             });
 
+            // 5. Finalize leads list
+            let finalLeads = baseLeads.length > 0 ? baseLeads : allRawLeads.filter(lead => {
+                const leadQuery = (lead.queryValue || '').toLowerCase();
+                return leadQuery.includes(searchName) || searchName.includes(leadQuery);
+            });
+
+            // 6. Normalize all leads for the UI
+            finalLeads = finalLeads.map(lead => normalizeLead(lead));
+
+            // 5. De-duplicate and set leads directly (no extra per-lead API calls needed)
+            const seenIds = new Set();
+            const uniqueLeads = finalLeads.filter(lead => {
+                if (!lead) return false;
+                const rawId = lead.result_id || lead.id || lead.business_id || lead.lead_id || lead.business_information_id || '';
+                const rawName = lead.name || lead.BusinessName || lead.business_name || lead.Business_Name || lead.title || '';
+                const rawAddr = lead.address || lead.Address || lead.full_address || lead.location || '';
+                const normName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const normAddr = rawAddr.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const nameAddrSlug = (normName && normAddr) ? `na-${normName}-${normAddr}` : null;
+                const isSlug = String(rawId).startsWith('na-') || String(rawId).startsWith('ph-') || String(rawId).startsWith('em-') || String(rawId).startsWith('name-');
+                const cleanId = !isSlug && rawId ? rawId : null;
+                const matchKey = cleanId || nameAddrSlug || `key-${Math.random()}`;
+                if (seenIds.has(matchKey)) return false;
+                seenIds.add(matchKey);
+                return true;
+            });
+
+            console.log(`SET_LEADS: total unique leads = ${uniqueLeads.length}`);
             setLeads(uniqueLeads);
 
         } catch (error) {
@@ -208,9 +202,18 @@ const AudienceDetails = () => {
         { label: 'TOTAL LEADS', value: leads.length.toString(), icon: Users },
     ];
 
-    const handleViewContact = (contact) => {
+    const handleViewContact = async (contact) => {
         const id = contact.id || contact.result_id;
         setViewingId(id);
+        
+        // --- Call Summary API (Pre-fetch / Trigger) ---
+        try {
+            console.log("TRIGGERING_SUMMARY_API_ON_CLICK:", id);
+            await Api.getSummary(id, adminToken);
+        } catch (err) {
+            console.warn("Summary call background error:", err.message);
+        }
+
         setTimeout(() => {
             console.log("Navigating to single lead. isEnriched flag:", isEnriched, "contact:", contact);
             if (isEnriched || contact.status === 'ENRICHED' || contact.status === 'Enriched') {
@@ -220,6 +223,12 @@ const AudienceDetails = () => {
             }
             setViewingId(null);
         }, 300);
+    };
+
+    const toggleLeadSelection = (id) => {
+        setSelectedLeads(prev =>
+            prev.includes(id) ? prev.filter(l => l !== id) : [...prev, id]
+        );
     };
 
     return (
@@ -239,6 +248,9 @@ const AudienceDetails = () => {
                 isEnriched={isEnriched} 
                 viewingId={viewingId} 
                 onViewContact={handleViewContact} 
+                selectedLeads={selectedLeads}
+                toggleLeadSelection={toggleLeadSelection}
+                setSelectedLeads={setSelectedLeads}
             />
         </div>
     );

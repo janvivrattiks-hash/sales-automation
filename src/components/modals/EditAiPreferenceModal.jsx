@@ -49,14 +49,14 @@ const EditAiPreferenceModal = ({ isOpen, onClose, currentData, onUpdate }) => {
             return;
         }
 
-        if (!user?.admin_id) {
+        if (!user?.id) {
             toast.error("User information not loaded.");
             return;
         }
 
         setIsSubmitting(true);
         try {
-            const result = await Api.updateAiPreference(adminToken, user.admin_id, tone, personalization);
+            const result = await Api.updateAiPreference(adminToken, user.id, tone, personalization);
             
             if (result) {
                 if (onUpdate) {
