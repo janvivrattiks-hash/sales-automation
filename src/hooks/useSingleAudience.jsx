@@ -6,7 +6,7 @@ import { findField, extractString, getDeepField } from '../utils/dataHelpers.jsx
 /**
  * Custom hook for managing Single Audience View logic.
  */
-const useSingleAudience = (leadId, initialLeadData) => {
+const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
     // Basic States
     const [activeTab, setActiveTab] = useState('summary');
     const [leads, setLeads] = useState(initialLeadData || null);
@@ -72,20 +72,20 @@ const useSingleAudience = (leadId, initialLeadData) => {
             setIsLoadingContactInfo(true);
             const token = localStorage.getItem('admin_token');
 
-            // Try fetching latest CRM data to ensure Maximum coverage of enriched details
+            // Try fetching latest CRM data for maximum detail coverage
             const crmData = await Api.getContactInfo(leadId, token);
+            console.log('GET_CONTACT_INFO_RESULT:', crmData);
 
-            const merged = {};
             if (crmData) {
-                Object.assign(merged, crmData);
-            }
-
-            if (Object.keys(merged).length > 0) {
-                setLeads(prev => ({ ...(prev || {}), ...merged }));
-                console.log('COMPREHENSIVE_DATA_MERGED:', merged);
+                // Ensure we merge into existing state to preserve any local updates
+                setLeads(prev => {
+                    const updated = { ...(prev || {}), ...crmData };
+                    // console.log('MERGED_LEAD_STATE_FINAL:', updated);
+                    return updated;
+                });
             }
         } catch (error) {
-            console.warn('Full contact data merge failed:', error?.message);
+            console.warn('Full contact data fetch failed:', error?.message);
         } finally {
             setIsLoadingContactInfo(false);
         }
@@ -96,6 +96,7 @@ const useSingleAudience = (leadId, initialLeadData) => {
             setIsLoadingSummary(true);
             const token = localStorage.getItem('admin_token');
             const data = await Api.getSummary(leadId, token);
+            console.log('SUMMARY_API_RESPONSE:', data);
             setSummaryData(data || null);
         } catch (error) {
             console.error('Error fetching summary:', error);
@@ -110,6 +111,7 @@ const useSingleAudience = (leadId, initialLeadData) => {
             setIsLoadingMessages(true);
             const token = localStorage.getItem('admin_token');
             const data = await Api.generateMessagesStrategy(leadId, token);
+            console.log('MESSAGES_STRATEGY_API_RESPONSE:', data);
             setMessagesData(data || null);
         } catch (error) {
             console.error('Error fetching messages:', error);
@@ -137,13 +139,62 @@ const useSingleAudience = (leadId, initialLeadData) => {
         try {
             setIsLoadingNotes(true);
             const token = localStorage.getItem('admin_token');
-            // getNotes(token, id) - Scoped to leadId
-            const data = await Api.getNotes(token, leadId);
-            setNotesList(data || []);
+            const data = await Api.getNotes(token, 0, 100);
+
+            // 1. Ultimate Recursive Array Discovery
+            const findArray = (obj) => {
+                if (Array.isArray(obj)) return obj;
+                if (!obj || typeof obj !== 'object') return null;
+                for (const key in obj) {
+                    const found = findArray(obj[key]);
+                    if (found) return found;
+                }
+                return null;
+            };
+
+            const rawNotes = findArray(data) || [];
+
+            // 2. Smart Filtering with Fallback
+            const currentLeadIdStr = String(leadId || '').trim();
+
+            const filtered = rawNotes.filter(note => {
+                if (!note) return false;
+                const noteLeadId = String(note.lead_id || note.business_id || note.target_id || '').trim();
+                return noteLeadId === currentLeadIdStr;
+            });
+
+            // 3. FALLBACK: If filtering yields 0 but we received notes, show them all
+            const itemsToShow = (filtered.length > 0)
+                ? filtered
+                : rawNotes.map(n => ({ ...n, isGlobal: true }));
+
+            console.log(`FETCH_NOTES_ULTIMATE_AUDIT [Lead: ${currentLeadIdStr}]:`, {
+                received: rawNotes.length,
+                filtered: filtered.length,
+                isFallbackMode: filtered.length === 0 && rawNotes.length > 0,
+                sample: itemsToShow[0]
+            });
+
+            setNotesList(itemsToShow);
         } catch (error) {
             console.error('Error fetching notes:', error);
+            setNotesList([]);
         } finally {
             setIsLoadingNotes(false);
+        }
+    };
+
+    const [isTriggeringReminders, setIsTriggeringReminders] = useState(false);
+
+    const handleTriggerReminders = async () => {
+        try {
+            setIsTriggeringReminders(true);
+            const token = localStorage.getItem('admin_token');
+            await Api.triggerTestReminders(token);
+        } catch (error) {
+            console.error('Error triggering reminders:', error);
+        } finally {
+            setIsTriggeringReminders(false);
         }
     };
 
@@ -170,10 +221,9 @@ const useSingleAudience = (leadId, initialLeadData) => {
             // Api.addNote signature: (data, token)
             await Api.addNote({
                 lead_id: leadId,
-                title: noteTitle,
-                content: noteContent
+                note_name: noteTitle,
+                comments: noteContent
             }, token);
-            toast.success('Note added successfully');
             setNoteTitle('');
             setNoteContent('');
             setIsAddingNote(false);
@@ -185,16 +235,27 @@ const useSingleAudience = (leadId, initialLeadData) => {
         }
     };
 
-    const handleDeleteNote = async (noteId) => {
-        if (!window.confirm('Are you sure you want to delete this note?')) return;
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [noteToDelete, setNoteToDelete] = useState(null);
+
+    const openDeleteModal = (noteId) => {
+        setNoteToDelete(noteId);
+        setIsDeleteDialogOpen(true);
+    };
+
+    const confirmDeleteNote = async () => {
+        if (!noteToDelete) return;
         try {
+            setIsSubmitting(true);
             const token = localStorage.getItem('admin_token');
-            // Api.deleteNote signature: (id, token)
-            await Api.deleteNote(noteId, token);
-            toast.success('Note deleted');
+            await Api.deleteNote(noteToDelete, token);
             fetchNotes();
+            setIsDeleteDialogOpen(false);
+            setNoteToDelete(null);
         } catch (error) {
             toast.error('Failed to delete note');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -211,7 +272,7 @@ const useSingleAudience = (leadId, initialLeadData) => {
                 status: taskStatus,
                 description: taskDescription
             }, token);
-            toast.success('Task created successfully');
+            // toast.success('Task created successfully');
             setTaskName('');
             setTaskDueDate('');
             setTaskStatus('To Do');
@@ -230,10 +291,20 @@ const useSingleAudience = (leadId, initialLeadData) => {
         const links = [];
         const extractSocialLinksRecursively = (obj) => {
             if (!obj || typeof obj !== 'object') return;
+
+            // Check known profiles object from analyze-raw
+            const profiles = obj.social_media_profiles || obj.social_profiles || obj.profiles || {};
+            Object.values(profiles).forEach(val => {
+                if (typeof val === 'string' && val.includes('http')) {
+                    if (!links.includes(val)) links.push(val);
+                }
+            });
+
             Object.entries(obj).forEach(([key, value]) => {
                 if (typeof value === 'string' && (
                     value.includes('linkedin.com') ||
                     value.includes('twitter.com') ||
+                    value.includes('x.com') ||
                     value.includes('facebook.com') ||
                     value.includes('instagram.com') ||
                     value.includes('youtube.com') ||
@@ -241,15 +312,21 @@ const useSingleAudience = (leadId, initialLeadData) => {
                     key.toLowerCase().includes('social') ||
                     key.toLowerCase().includes('linkedin')
                 )) {
-                    if (value.startsWith('http') && !links.includes(value)) {
-                        links.push(value);
+                    let finalUrl = value;
+                    if (!value.startsWith('http') && (value.includes('.') || value.includes('/'))) {
+                        finalUrl = `https://${value.replace(/^\/\//, '')}`;
                     }
-                } else if (typeof value === 'object') {
+                    if (!links.includes(finalUrl)) {
+                        links.push(finalUrl);
+                    }
+                } else if (typeof value === 'object' && key !== 'social_media_profiles') {
                     extractSocialLinksRecursively(value);
                 }
             });
         };
         extractSocialLinksRecursively(leads);
+        // Also check if social links exist in summary/poi
+        if (summaryData) extractSocialLinksRecursively(summaryData);
         return links;
     };
 
@@ -263,13 +340,15 @@ const useSingleAudience = (leadId, initialLeadData) => {
 
     const getDerivedData = () => {
         const contactInfo = leads || {};
+        const bizInfo = contactInfo.business_information || contactInfo.business_info || {};
+        const ctrInfo = contactInfo.contact_info || contactInfo.contact_details || {};
 
         // --- SUPER SCANNER: Finds fields at any depth ---
         const discovered = {
             ratingVal: '0.0',
             phoneStr: '',
             websiteStr: '',
-            source: '',
+            sources: [], // Array to collect multiple sources
             owner: '',
             audienceName: '',
             icpScore: ''
@@ -302,8 +381,7 @@ const useSingleAudience = (leadId, initialLeadData) => {
                     if (typeof val === 'string' && val.length > 5 && /[\d]/.test(val)) {
                         discovered.phoneStr = val;
                     } else if (typeof val === 'object' && !Array.isArray(val)) {
-                        // Check nested properties within phone object
-                        const possiblePhoneValue = val.number || val.value || val.contact || val.phone || val.mobile || val.formatted || val.international;
+                        const possiblePhoneValue = val.number || val.value || val.contact || val.phone || val.mobile || val.formatted || val.international || val.primary;
                         if (typeof possiblePhoneValue === 'string' && possiblePhoneValue.length > 5 && /[\d]/.test(possiblePhoneValue)) {
                             discovered.phoneStr = possiblePhoneValue;
                         }
@@ -311,19 +389,26 @@ const useSingleAudience = (leadId, initialLeadData) => {
                 }
 
                 // 3. Website
-                if ((lowKey.includes('website') || lowKey.includes('url') || lowKey.includes('domain')) && typeof val === 'string' && val.includes('.') && !discovered.socialLinks?.includes(val)) {
+                if ((lowKey.includes('website') || lowKey.includes('url') || lowKey.includes('domain')) && typeof val === 'string' && val.includes('.') && val.length > 4) {
                     if (!val.includes('linkedin.com') && !val.includes('twitter.com') && !val.includes('facebook.com')) {
                         discovered.websiteStr = val;
                     }
                 }
 
                 // 4. Source
-                if (lowKey.includes('source') && typeof val === 'string' && val.length > 2) {
-                    discovered.source = val;
+                if ((lowKey.includes('source') || lowKey.includes('query_name') || lowKey.includes('niche') || lowKey.includes('search_query') || lowKey.includes('discovery_method') || lowKey.includes('extracted_from')) && val) {
+                    if (typeof val === 'string' && val.length > 2) {
+                        if (!discovered.sources.includes(val)) discovered.sources.push(val);
+                    } else if (typeof val === 'object' && !Array.isArray(val)) {
+                        const sub = val.name || val.value || val.query || val.niche || val.keyword || val.source;
+                        if (typeof sub === 'string' && sub.length > 2) {
+                            if (!discovered.sources.includes(sub)) discovered.sources.push(sub);
+                        }
+                    }
                 }
 
-                // 5. Owner
-                if ((lowKey.includes('owner') || lowKey.includes('assigned')) && typeof val === 'string' && val.length > 2) {
+                // 5. Owner/Lead Mapping
+                if ((lowKey.includes('owner') || lowKey.includes('assigned') || lowKey.includes('admin_name') || lowKey.includes('handler') || lowKey.includes('lead_owner')) && typeof val === 'string' && val.length > 2) {
                     discovered.owner = val;
                 }
 
@@ -336,42 +421,47 @@ const useSingleAudience = (leadId, initialLeadData) => {
                 }
 
                 // 7. ICP Score
-                if ((lowKey.includes('icp_score') || lowKey.includes('fit_score') || lowKey.includes('match_score') || lowKey.includes('icp_match')) && val) {
+                if ((lowKey.includes('icp_score') || lowKey.includes('fit_score') || lowKey.includes('match_score') || lowKey.includes('icp_match') || lowKey.includes('suitability_score') || (lowKey === 'score')) && val) {
                     if (typeof val === 'number' || typeof val === 'string') {
                         discovered.icpScore = String(val);
                     }
                 }
 
                 // Recurse
-                if (val && typeof val === 'object') {
+                if (val && typeof val === 'object' && key !== 'social_media_profiles' && key !== 'contact_info') {
                     recursiveScanner(val);
                 }
             }
         };
 
         recursiveScanner(contactInfo);
+        if (summaryData) recursiveScanner(summaryData);
 
+        // --- Final Field Normalization ---
         return {
-            businessName: extractString(getDeepField(contactInfo, ['business_name', 'BusinessName', 'company_name', 'name', 'Business Name', 'organization', 'trade_name', 'Company', 'brand_name', 'Business_Name']), 'N/A'),
-            contactName: extractString(getDeepField(contactInfo, ['full_name', 'contact_name', 'contact_person', 'owner_name', 'name', 'Contact Name', 'Full Name', 'OwnerName', 'ContactPerson', 'ownerName', 'first_name', 'last_name']), 'N/A'),
-            category: extractString(getDeepField(contactInfo, ['category', 'industry', 'business_type', 'Industry', 'niche', 'sector', 'business_category', 'business_category_name']), 'N/A'),
-            locationStr: extractString(getDeepField(contactInfo, ['location', 'address', 'Address', 'full_address', 'formatted_address', 'city', 'Location', 'City', 'full_location', 'physical_address']), 'N/A'),
-            phoneStr: discovered.phoneStr || extractString(getDeepField(contactInfo, ['phone', 'phone_number', 'mobile', 'MobileNumber', 'contact_number', 'Phone', 'work_phone', 'contact_phone', 'telephone', 'mobile_no', 'contact_no', 'Mobile', 'contact_mobile', 'phoneNumber']), 'N/A'),
-            websiteStr: discovered.websiteStr || extractString(getDeepField(contactInfo, ['website', 'website_url', 'domain', 'url', 'Website', 'site_url', 'home_page', 'homepage', 'web']), 'N/A'),
-            ratingVal: discovered.ratingVal !== '0.0' ? discovered.ratingVal : (getDeepField(contactInfo, ['rating', 'google_rating', 'Rating', 'stars', 'star_rating', 'google_map_rating', 'average_rating', 'score', 'googleRating', 'avg_rating']) || '0.0'),
-            source: discovered.source || (getDeepField(contactInfo, ['source', 'lead_source', 'Lead Source', 'source_job', 'origin']) || 'Manual / Imported'),
+            businessName: extractString(bizInfo.name || bizInfo.business_name || getDeepField(contactInfo, ['business_name', 'BusinessName', 'company_name', 'name', 'Business Name', 'organization', 'trade_name', 'Company', 'brand_name', 'Business_Name']), 'N/A'),
+            contactName: extractString(discovered.owner || getDeepField(contactInfo, ['full_name', 'contact_name', 'contact_person', 'owner_name', 'name', 'Contact Name', 'Full Name', 'OwnerName', 'ContactPerson', 'ownerName', 'first_name', 'last_name']), 'N/A'),
+            category: extractString(bizInfo.category || bizInfo.industry || getDeepField(contactInfo, ['category', 'industry', 'business_type', 'Industry', 'niche', 'sector', 'business_category', 'business_category_name']), 'N/A'),
+            locationStr: extractString(bizInfo.full_address || bizInfo.address || getDeepField(contactInfo, ['location', 'address', 'Address', 'full_address', 'formatted_address', 'city', 'Location', 'City', 'full_location', 'physical_address']), 'N/A'),
+            phoneStr: discovered.phoneStr || extractString(bizInfo.phone || getDeepField(contactInfo, ['phone', 'phone_number', 'mobile', 'MobileNumber', 'contact_number', 'Phone', 'work_phone', 'contact_phone', 'telephone', 'mobile_no', 'contact_no', 'Mobile', 'contact_mobile', 'phoneNumber']), 'N/A'),
+            websiteStr: discovered.websiteStr || extractString(bizInfo.website || getDeepField(contactInfo, ['website', 'website_url', 'domain', 'url', 'Website', 'site_url', 'home_page', 'homepage', 'web']), 'N/A'),
+            ratingVal: discovered.ratingVal !== '0.0' ? discovered.ratingVal : (bizInfo.rating || getDeepField(contactInfo, ['rating', 'google_rating', 'Rating', 'stars', 'star_rating', 'google_map_rating', 'average_rating', 'score', 'googleRating', 'avg_rating']) || '0.0'),
+            source: discovered.sources.length > 0
+                ? discovered.sources.join(', ')
+                : (getDeepField(contactInfo, ['source', 'lead_source', 'Lead Source', 'source_job', 'origin', 'query_name', 'niche_or_keyword']) || 'Manual / Imported'),
             socialLinks: getSocialLinks(),
             emailsArray: (() => {
-                const emailsField = getDeepField(contactInfo, ['emails', 'email_addresses', 'emails_found', 'email', 'Email', 'contact_emails', 'personal_email', 'work_email', 'email1', 'email2']);
+                const emailsFromCtr = ctrInfo.emails || ctrInfo.email_addresses || ctrInfo.emails_found;
+                const emailsField = emailsFromCtr || getDeepField(contactInfo, ['emails', 'email_addresses', 'emails_found', 'email', 'Email', 'contact_emails', 'personal_email', 'work_email', 'email1', 'email2', 'primary_email', 'biz_email', 'business_email', 'email_addr']);
                 if (Array.isArray(emailsField)) return emailsField.map(e => String(e).trim()).filter(Boolean);
                 if (typeof emailsField === 'string') return emailsField.split(',').map(s => s.trim()).filter(Boolean);
                 return emailsField ? [String(emailsField).trim()] : [];
             })(),
-            audienceName: discovered.audienceName || leads?.audience_id?.audience_name || leads?.audience_id?.audiance_name || leads?.audiance_name || leads?.audience_name || 'Individual Prospect',
+            audienceName: discovered.audienceName || initialAudience?.audiance_name || initialAudience?.name || 'Individual Prospect',
             icpScore: discovered.icpScore || leads?.icp_score || leads?.fit_score || 'N/A',
-            leadStage: leads?.stage || leads?.status || leads?.job_status || 'New Prospect',
-            leadTitle: leads?.title || leads?.job_title || leads?.position || 'Lead Profile',
-            leadOwner: discovered.owner || (leads?.owner || leads?.assigned_to || leads?.owner_name || 'Account Executive')
+            leadStage: leads?.stage || leads?.status || leads?.pipeline_stage || leads?.lead_status || 'New Prospect',
+            leadTitle: leads?.title || leads?.job_title || leads?.position || leads?.job_position || 'Lead Profile',
+            leadOwner: discovered.owner || (leads?.owner || leads?.assigned_to || 'Account Executive')
         };
     };
 
@@ -407,7 +497,12 @@ const useSingleAudience = (leadId, initialLeadData) => {
 
         // Actions
         handleAddNote,
-        handleDeleteNote,
+        openDeleteModal,
+        confirmDeleteNote,
+        isDeleteDialogOpen,
+        setIsDeleteDialogOpen,
+        handleTriggerReminders,
+        isTriggeringReminders,
         handleAddTask,
 
         // UI Utils

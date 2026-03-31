@@ -213,7 +213,7 @@ const SummaryTab = ({ summaryData, isLoadingSummary, poiDetails, isLoadingPoi, i
             })()}
 
             {/* 7. POI Details (Point of Interest) */}
-            {(() => {
+            {/* {(() => {
                 const poi = poiDetails || getDeepField(contactInfo, ['poi_details', 'poi', 'points_of_interest']);
                 if (!poi) return null;
                 return (
@@ -231,7 +231,7 @@ const SummaryTab = ({ summaryData, isLoadingSummary, poiDetails, isLoadingPoi, i
                         </div>
                     </div>
                 );
-            })()}
+            })()} */}
         </div>
     );
 };

@@ -3,13 +3,13 @@ import { Mail } from 'lucide-react';
 import Button from '../ui/Button';
 import Api from '../../../scripts/Api';
 
-const MessagesTab = ({ 
-    messagesData, 
-    isLoadingMessages, 
-    contactName, 
-    businessName, 
-    emailsArray, 
-    phoneStr 
+const MessagesTab = ({
+    messagesData,
+    isLoadingMessages,
+    contactName,
+    businessName,
+    emailsArray,
+    phoneStr
 }) => {
     if (isLoadingMessages) {
         return (
@@ -20,11 +20,90 @@ const MessagesTab = ({
         );
     }
 
+    // Extreme Data Discovery (Channel-Aware Recursive Scan)
+    const discoverContent = (data) => {
+        const result = { emailSubject: '', emailBody: '', whatsappBody: '' };
+        if (!data) return result;
+
+        console.log('MESSAGES_DATA_IN_TAB:', data);
+
+        // 1. Handle direct string response (if API returns just the email body)
+        if (typeof data === 'string' && data.length > 20) {
+            if (data.includes('Hi ') || data.includes('Hello ')) {
+                result.emailBody = data;
+                return result;
+            }
+        }
+
+        if (typeof data !== 'object') return result;
+
+        const emailKeys = ['email_message', 'email', 'email_script', 'email_body', 'email_text', 'direct_email', 'outreach_email', 'cold_email', 'marketing_email'];
+        const subjectKeys = ['subject', 'email_subject', 'title', 'header', 'topic'];
+        const whatsappKeys = ['whatsapp_message', 'whatsapp', 'whatsapp_script', 'whatsapp_body', 'whatsapp_text', 'sms_message', 'direct_message', 'chat_script'];
+
+        const seen = new Set();
+        const scan = (obj, depth = 0) => {
+            if (depth > 5 || !obj || seen.has(obj)) return;
+            seen.add(obj);
+
+            if (Array.isArray(obj)) {
+                obj.forEach(item => scan(item, depth + 1));
+                return;
+            }
+
+            // A. Type/Channel Detection (Primary)
+            // If object looks like { type: 'email', content: '...' } or { channel: 'whatsapp', body: '...' }
+            const possibleType = String(obj.type || obj.channel || obj.category || obj.target || obj.channel_type || '').toLowerCase();
+            const possibleContent = obj.content || obj.body || obj.message || obj.text || obj.script || obj.value;
+
+            if (typeof possibleContent === 'string' && possibleContent.length > 10) {
+                if (possibleType.includes('email') || possibleType.includes('mail')) {
+                    if (!result.emailBody || possibleContent.length > result.emailBody.length) result.emailBody = possibleContent;
+                    if (obj.subject && !result.emailSubject) result.emailSubject = obj.subject;
+                } else if (possibleType.includes('whatsapp') || possibleType.includes('whatsapp_script') || possibleType.includes('sms')) {
+                    if (!result.whatsappBody || possibleContent.length > result.whatsappBody.length) result.whatsappBody = possibleContent;
+                }
+            }
+
+            // B. Pattern-Based Detection (Secondary)
+            for (const key in obj) {
+                const val = obj[key];
+                const lowKey = key.toLowerCase();
+
+                if (typeof val === 'string' && val.length > 10) {
+                    // Match Subject
+                    if (!result.emailSubject && subjectKeys.some(sk => lowKey.includes(sk))) {
+                        result.emailSubject = val;
+                    }
+                    // Match Email Body
+                    if (emailKeys.some(ek => lowKey.includes(ek))) {
+                        if (!result.emailBody || val.length > result.emailBody.length) result.emailBody = val;
+                    }
+                    // Match WhatsApp
+                    if (whatsappKeys.some(wk => lowKey.includes(wk))) {
+                        if (!result.whatsappBody || val.length > result.whatsappBody.length) result.whatsappBody = val;
+                    }
+
+                    // Universal Fallback for Email
+                    if (!result.emailBody && (val.includes('Hi ') || val.includes('Hello ') || val.includes('Dear '))) {
+                        result.emailBody = val;
+                    }
+                } else if (typeof val === 'object') {
+                    scan(val, depth + 1);
+                }
+            }
+        };
+
+        scan(data);
+        return result;
+    };
+
+    const { emailSubject, emailBody, whatsappBody } = discoverContent(messagesData);
     const firstName = contactName ? contactName.split(' ')[0] : 'there';
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            {/* Email Outreach */}
+            {/* 1. Email Outreach */}
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden group">
                 <div className="absolute top-0 left-0 w-1 h-full bg-[#EA4335]"></div>
                 <div className="flex items-center justify-between mb-4">
@@ -34,7 +113,9 @@ const MessagesTab = ({
                         </div>
                         <div>
                             <h3 className="text-sm font-bold text-gray-900">Email Outreach Draft</h3>
-                            <p className="text-[10px] font-bold text-gray-400 tracking-tight uppercase">Direct Email Strategy</p>
+                            <p className="text-[10px] font-bold text-gray-400 tracking-tight uppercase">
+                                {emailSubject ? `Subject: ${emailSubject}` : 'Direct Email Strategy'}
+                            </p>
                         </div>
                     </div>
                     <Button
@@ -42,21 +123,18 @@ const MessagesTab = ({
                         size="sm"
                         className="h-8 rounded-lg text-[10px] font-bold hover:bg-[#EA4335]/5 text-[#EA4335]"
                         onClick={async () => {
-                            const text = messagesData?.email_message || messagesData?.email || `Hi ${firstName},\n\nLoved your recent post about scaling operations...`;
+                            const text = emailBody || `Hi ${firstName},\n\nLoved your recent post about scaling operations...`;
                             const toEmail = emailsArray[0] || '';
-                            window.open(`mailto:${toEmail}?body=${encodeURIComponent(text)}`);
-
-                            const token = localStorage.getItem('admin_token');
-                            if (token) {
-                                await Api.triggerTestReminders(token);
-                            }
+                            const subject = emailSubject || `Scaling your operations at ${businessName}`;
+                            window.open(`mailto:${toEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`);
                         }}
                     >
                         Send
                     </Button>
                 </div>
-                <div className="bg-gray-50/50 p-5 rounded-xl text-sm text-gray-700 font-medium leading-relaxed font-mono border border-gray-100 whitespace-pre-line">
-                    {messagesData?.email_message || messagesData?.email || (
+                <div className="bg-gray-50/50 p-5 rounded-xl text-sm text-gray-700 font-medium leading-relaxed font-mono border border-gray-100 whitespace-pre-line group-hover:border-red-100 transition-colors">
+                    {emailSubject && <div className="mb-3 pb-2 border-b border-gray-200/60 font-bold text-gray-900">Subject: {emailSubject}</div>}
+                    {emailBody || (
                         <>
                             Hi {firstName},<br /><br />
                             Loved your recent post about scaling operations at {businessName}. I noticed you might be facing challenges with workflow automation.<br /><br />
@@ -66,7 +144,7 @@ const MessagesTab = ({
                 </div>
             </div>
 
-            {/* WhatsApp Outreach */}
+            {/* 2. WhatsApp Outreach */}
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden group">
                 <div className="absolute top-0 left-0 w-1 h-full bg-[#25D366]"></div>
                 <div className="flex items-center justify-between mb-4">
@@ -84,21 +162,16 @@ const MessagesTab = ({
                         size="sm"
                         className="h-8 rounded-lg text-[10px] font-bold hover:bg-[#25D366]/5 text-[#25D366]"
                         onClick={async () => {
-                            const text = messagesData?.whatsapp_message || messagesData?.whatsapp || `Hi ${firstName}, it's Sarah from [Your Company]...`;
-                            const cleanPhone = phoneStr.replace(/\D/g, '');
+                            const text = whatsappBody || `Hi ${firstName}, it's Sarah from [Your Company]...`;
+                            const cleanPhone = (phoneStr || '').replace(/\D/g, '');
                             window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`, '_blank');
-
-                            const token = localStorage.getItem('admin_token');
-                            if (token) {
-                                await Api.triggerTestReminders(token);
-                            }
                         }}
                     >
                         Send
                     </Button>
                 </div>
-                <div className="bg-gray-50/50 p-5 rounded-xl text-sm text-gray-700 font-medium leading-relaxed border border-gray-100 whitespace-pre-line">
-                    {messagesData?.whatsapp_message || messagesData?.whatsapp || (
+                <div className="bg-gray-50/50 p-5 rounded-xl text-sm text-gray-700 font-medium leading-relaxed border border-gray-100 whitespace-pre-line group-hover:border-green-100 transition-colors">
+                    {whatsappBody || (
                         <>
                             Hi {firstName}, it's Sarah from [Your Company]. Wanted to reach out regarding the solutions we discussed. Do you have 5 mins tomorrow to sync?
                         </>

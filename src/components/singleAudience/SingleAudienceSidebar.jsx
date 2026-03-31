@@ -132,7 +132,13 @@ const SingleAudienceSidebar = ({
                     {/* 10. Lead Source */}
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Lead Source</p>
-                        <p className="text-[11px] font-bold text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100 w-fit">{source}</p>
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            {String(source || 'Manual / Imported').split(',').map((src, i) => (
+                                <span key={i} className="text-[10px] font-extrabold text-gray-500 bg-gray-50 px-2 py-1 rounded border border-gray-100 whitespace-nowrap">
+                                    {src.trim()}
+                                </span>
+                            ))}
+                        </div>
                     </div>
 
                     {/* 11. Lead Owner */}
@@ -145,6 +151,8 @@ const SingleAudienceSidebar = ({
                             <p className="text-sm font-bold text-gray-900">{leadOwner}</p>
                         </div>
                     </div>
+
+
                 </div>
             </Card>
         </div>

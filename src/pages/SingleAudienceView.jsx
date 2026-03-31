@@ -29,8 +29,9 @@ const SingleAudienceView = () => {
     const location = useLocation();
     // AudienceDetails navigates with { singleLead, audience } — support both keys
     const leadData = location.state?.singleLead || location.state?.leadData || null;
+    const audienceData = location.state?.audience || location.state?.selectedAudience || null;
     const fromTab = location.state?.fromTab || null;
-    const leadId = leadData?.id || leadData?._id || leadData?.result_id;
+    const leadId = leadData?.id || leadData?._id || leadData?.result_id || leadData?.business_information_id;
 
     const {
         activeTab,
@@ -58,11 +59,16 @@ const SingleAudienceView = () => {
         taskDescription, setTaskDescription,
         isSubmitting,
         handleAddNote,
-        handleDeleteNote,
+        openDeleteModal,
+        confirmDeleteNote,
+        isDeleteDialogOpen,
+        setIsDeleteDialogOpen,
+        handleTriggerReminders,
+        isTriggeringReminders,
         handleAddTask,
         getHostname,
         derivedData
-    } = useSingleAudience(leadId, leadData);
+    } = useSingleAudience(leadId, leadData, audienceData);
 
     const renderSocialIcon = (url) => {
         const host = getHostname(url).toLowerCase();
@@ -168,7 +174,10 @@ const SingleAudienceView = () => {
                                     setNoteContent={setNoteContent}
                                     isSubmitting={isSubmitting}
                                     handleAddNote={handleAddNote}
-                                    handleDeleteNote={handleDeleteNote}
+                                    openDeleteModal={openDeleteModal}
+                                    confirmDeleteNote={confirmDeleteNote}
+                                    isDeleteDialogOpen={isDeleteDialogOpen}
+                                    setIsDeleteDialogOpen={setIsDeleteDialogOpen}
                                 />
                             )}
 
@@ -188,6 +197,8 @@ const SingleAudienceView = () => {
                                     setTaskDescription={setTaskDescription}
                                     isSubmitting={isSubmitting}
                                     handleAddTask={handleAddTask}
+                                    handleTriggerReminders={handleTriggerReminders}
+                                    isTriggeringReminders={isTriggeringReminders}
                                 />
                             )}
                         </SingleAudienceTabs>

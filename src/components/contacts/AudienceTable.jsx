@@ -17,7 +17,7 @@ const AudienceTable = ({
     const [fetchingId, setFetchingId] = useState(null);
 
     const handleViewAudience = async (aud, isNew) => {
-        const id = aud.id || aud.result_id;
+        const id = aud.id || aud.result_id || aud._id || aud.audiance_id || aud.audience_id;
         if (!id) return;
 
         setFetchingId(id);
@@ -25,12 +25,29 @@ const AudienceTable = ({
             // Fetch detailed audience data as requested
             const fullDetails = await Api.getAudienceDetails(id, adminToken);
 
+            // Extract leads correctly from the response (robust key checking)
+            const leads = fullDetails?.leads || 
+                          fullDetails?.contacts || 
+                          fullDetails?.results || 
+                          fullDetails?.audiance_leads ||
+                          fullDetails?.business_ids ||
+                          fullDetails?.data?.leads || 
+                          fullDetails?.data?.contacts || 
+                          fullDetails?.data?.results || 
+                          fullDetails?.data?.audiance_leads ||
+                          fullDetails?.data?.business_ids ||
+                          fullDetails?.data || 
+                          [];
+            
+            // Handle if leads is an object wrapping the array
+            const finalLeads = Array.isArray(leads) ? leads : (leads.leads || leads.contacts || leads.results || leads.data || leads.audiance_leads || leads.business_ids || []);
+
             navigate('/audience-details', {
                 state: {
                     audience: fullDetails || aud,
                     selectedAudience: fullDetails || aud,
                     activeTab: 'enriched',
-                    selectedLeadsData: isNew ? passedLeads : (fullDetails?.leads || fullDetails?.contacts || null)
+                    selectedLeadsData: finalLeads
                 }
             });
         } catch (error) {

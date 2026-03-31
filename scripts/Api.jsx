@@ -369,7 +369,7 @@ export default {
     saveAudience: async (data, token) => {
         try {
             console.log("Save Audience Data:", data);
-            
+
             if (!token) {
                 toast.error("Authentication token is missing. Please login again.");
                 return null;
@@ -574,7 +574,6 @@ export default {
 
             if (res.status === 200 || res.status === 201) {
                 console.log("Add Note Response:", res.data);
-                toast.success("Note added successfully");
                 return res.data;
             } else {
                 toast.error("Failed to add note");
@@ -587,17 +586,18 @@ export default {
         }
     },
 
-    getNotes: async (token) => { // get notes api
+    getNotes: async (token, skip = 0, limit = 100) => { // get notes api (literal curl implementation)
         try {
             if (!token) {
                 toast.error("Authentication token is missing. Please login again.");
                 return null;
             }
 
+            // Sync with literal curl: GET http://192.168.1.35:8000/contact_managment/notes/?skip=0&limit=100
             const res = await axios.get(`${API_BASE_URL}/contact_managment/notes/`, {
                 params: {
-                    skip: 0,
-                    limit: 100
+                    skip: skip,
+                    limit: limit
                 },
                 headers: {
                     accept: "application/json",
@@ -632,7 +632,7 @@ export default {
                 },
             });
             if (res.status === 200 || res.status === 204) {
-                toast.success("Note deleted successfully");
+                // toast.success("Note deleted successfully");
                 return true;
             }
             return false;
@@ -722,7 +722,7 @@ export default {
         }
     },
 
-    triggerDueTomorrow: async (token, templateType = '10AM') => { // GET /contact_managment/tasks/test-reminders/force-tomorrow
+    triggerDueTomorrow: async (token, templateType = '10AM') => {
         try {
             if (!token) {
                 toast.error("Authentication token is missing. Please login again.");
@@ -733,17 +733,16 @@ export default {
                 {
                     params: { template_type: templateType },
                     headers: {
-                        accept: "application/json",
-                        Authorization: `Bearer ${token}`,
+                        "accept": "application/json",
+                        "Authorization": `Bearer ${token}`,
                     },
                 }
             );
-            if (res.status === 200) {
-                console.log("Due Tomorrow Notification Response", res.data);
-                return res.data;
-            }
+
+            console.log("Due Tomorrow Notification Response:", res.data);
+            return res.data;
         } catch (error) {
-            console.log("Due Tomorrow Notification Error:", error.response || error);
+            console.error("Due Tomorrow Notification Error:", error.response?.data || error.message);
             toast.error("Failed to send due-tomorrow notifications.");
             return null;
         }
@@ -765,6 +764,8 @@ export default {
                     Authorization: `Bearer ${token}`,
                 },
             });
+
+            console.log("Get Tasks API Response:", res?.data);
 
             return res?.data || null;
 
