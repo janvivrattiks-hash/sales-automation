@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, Plus, Trash2 } from 'lucide-react';
+import { Clock, Plus, Trash2, Bell } from 'lucide-react';
 import Button from '../ui/Button';
 
 const TasksTab = ({ 
@@ -16,21 +16,37 @@ const TasksTab = ({
     taskDescription, 
     setTaskDescription, 
     isSubmitting, 
-    handleAddTask, 
+    handleAddTask,
+    handleTriggerReminders,
+    isTriggeringReminders,
 }) => {
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex justify-between items-center mb-6">
                 <h3 className="font-bold text-gray-900">Tasks & Actions</h3>
-                {!isAddingTask && (
-                    <Button
-                        size="sm"
-                        className="flex items-center gap-2"
-                        onClick={() => setIsAddingTask(true)}
-                    >
-                        <Plus size={14} /> Add Task
-                    </Button>
-                )}
+                <div className="flex items-center gap-3">
+                    {!isAddingTask && (
+                        <>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center gap-2 border-primary/20 text-primary hover:bg-primary/5"
+                                onClick={handleTriggerReminders}
+                                disabled={isTriggeringReminders}
+                            >
+                                <Bell size={14} className={isTriggeringReminders ? 'animate-bounce' : ''} />
+                                {isTriggeringReminders ? 'Triggering...' : 'Trigger Reminders'}
+                            </Button>
+                            <Button
+                                size="sm"
+                                className="flex items-center gap-2"
+                                onClick={() => setIsAddingTask(true)}
+                            >
+                                <Plus size={14} /> Add Task
+                            </Button>
+                        </>
+                    )}
+                </div>
             </div>
 
             {isAddingTask && (

@@ -36,10 +36,17 @@ const ReviewLeads = () => {
     useEffect(() => {
         const rawResults = location.state?.results;
         if (rawResults) {
-            const leadsArray = Array.isArray(rawResults)
-                ? rawResults
-                : (rawResults.results || rawResults.data || []);
-            setOriginalLeads(leadsArray);
+            let leadsArray = [];
+            if (Array.isArray(rawResults)) {
+                leadsArray = rawResults;
+            } else {
+                leadsArray = rawResults.results || rawResults.data || rawResults.leads || [];
+                // If it's still not an array but an object with a data property that's an array
+                if (!Array.isArray(leadsArray) && leadsArray.data && Array.isArray(leadsArray.data)) {
+                    leadsArray = leadsArray.data;
+                }
+            }
+            setOriginalLeads(Array.isArray(leadsArray) ? leadsArray : []);
         } else if (leads && leads.length > 0) {
             setOriginalLeads(Array.isArray(leads) ? leads : (leads.results || leads.data || []));
         } else {
@@ -161,7 +168,15 @@ const ReviewLeads = () => {
             {isEnriching && <EnrichingOverlay />}
 
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <ReviewLeadsHeader />
+                <div>
+                    <ReviewLeadsHeader />
+                    {queryInfo && (queryInfo.niche || queryInfo.city) && (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                            <span className="px-3 py-1 bg-blue-50 text-blue-600 text-xs font-bold rounded-lg uppercase tracking-wider">Target: {queryInfo.niche || 'N/A'}</span>
+                            <span className="px-3 py-1 bg-gray-50 text-gray-600 text-xs font-bold rounded-lg uppercase tracking-wider">Location: {queryInfo.city || 'Any'} {queryInfo.area ? `(${queryInfo.area})` : ''}</span>
+                        </div>
+                    )}
+                </div>
                 <ReviewLeadsStats totalLeads={filteredLeads.length} />
             </div>
 

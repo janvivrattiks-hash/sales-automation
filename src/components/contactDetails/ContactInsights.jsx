@@ -29,13 +29,13 @@ const ContactInsights = ({ finalLead }) => {
                 )}
             </div>
 
-            {poi && (
+            {/* {poi && (
                 <Card title="Local Insights (POI)" icon={MapPin}>
                     <div className="mt-2 text-sm leading-relaxed">
                         {renderData(poi)}
                     </div>
                 </Card>
-            )}
+            )} */}
         </div>
     );
 };

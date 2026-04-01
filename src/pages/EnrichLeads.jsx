@@ -55,31 +55,50 @@ const EnrichLeads = () => {
         setIsFiltering(true);
         const filterParams = {
             website: filters.website || 'Any',
-            ratings: filters.minRating || 0,
+            ratings: filters.ratings || filters.minRating || 0,
             category: filters.category || ''
         };
 
-        const response = await Api.filterLeads(filterParams, adminToken);
-        let filteredData = [];
+        try {
+            const response = await Api.filterLeads(filterParams, adminToken);
+            let filteredData = [];
 
-        if (Array.isArray(response)) {
-            filteredData = response;
-        } else if (response && typeof response === 'object') {
-            if (Array.isArray(response.data)) filteredData = response.data;
-            else if (Array.isArray(response.results)) filteredData = response.results;
-            else if (Array.isArray(response.leads)) filteredData = response.leads;
-            else {
-                const possibleArrays = Object.values(response).filter(Array.isArray);
-                if (possibleArrays.length > 0) {
-                    filteredData = possibleArrays.sort((a, b) => b.length - a.length)[0];
+            if (Array.isArray(response)) {
+                filteredData = response;
+            } else if (response && typeof response === 'object') {
+                if (Array.isArray(response.data)) filteredData = response.data;
+                else if (Array.isArray(response.results)) filteredData = response.results;
+                else if (Array.isArray(response.leads)) filteredData = response.leads;
+                else {
+                    const possibleArrays = Object.values(response).filter(Array.isArray);
+                    if (possibleArrays.length > 0) {
+                        filteredData = possibleArrays.sort((a, b) => b.length - a.length)[0];
+                    }
                 }
             }
-        }
 
-        navigate('/review-leads', {
-            state: { results: filteredData, queryInfo: leadData }
-        });
-        setIsFiltering(false);
+            // If user has specifically selected leads, we should prioritize them 
+            // but if they are filtering, they likely want the filtered set as the new context.
+            const finalLeads = selectedLeads.length > 0
+                ? filteredData.filter(l => selectedLeads.includes(l.id || l.result_id || l.MobileNumber))
+                : filteredData;
+
+            navigate('/review-leads', {
+                state: { 
+                    results: finalLeads.length > 0 ? finalLeads : filteredData, 
+                    queryInfo: {
+                        niche: queryValue,
+                        city: cityValue,
+                        area: areaValue,
+                        ...leadData
+                    }
+                }
+            });
+        } catch (error) {
+            console.error("Filter failed:", error);
+        } finally {
+            setIsFiltering(false);
+        }
     };
 
     const toggleLeadSelection = (leadId) => {
@@ -179,12 +198,17 @@ const EnrichLeads = () => {
                     className="px-10 shadow-2xl shadow-primary/30 text-lg"
                     onClick={() => {
                         const leadsToPass = selectedLeads.length > 0
-                            ? leads.filter(l => selectedLeads.includes(l.id || l.MobileNumber))
+                            ? leads.filter(l => selectedLeads.includes(l.id || l.MobileNumber || l.result_id))
                             : leads;
                         navigate('/review-leads', {
                             state: {
                                 results: leadsToPass,
-                                queryInfo: { niche: queryValue, city: cityValue, area: areaValue }
+                                queryInfo: { 
+                                    niche: queryValue, 
+                                    city: cityValue, 
+                                    area: areaValue,
+                                    ...leadData 
+                                }
                             }
                         });
                     }}
