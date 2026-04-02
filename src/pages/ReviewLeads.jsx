@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
     ChevronRight,
@@ -30,6 +30,7 @@ const ReviewLeads = () => {
     const [isEnriching, setIsEnriching] = useState(false);
     const [selectedLeads, setSelectedLeads] = useState([]);
     const [originalLeads, setOriginalLeads] = useState([]);
+    const loadingLeadIdRef = useRef(null); // Synchronous ref to prevent concurrent calls
     
     const itemsPerPage = 5;
 
@@ -109,29 +110,70 @@ const ReviewLeads = () => {
         return () => clearTimeout(timer);
     }, []);
 
-    const handleSelectAll = (checked) => {
+    const handleSelectAll = useCallback((checked) => {
         const currentIds = currentLeads.map(l => l.id || l.MobileNumber || l.mobile_number);
         if (checked) {
             setSelectedLeads(prev => [...new Set([...prev, ...currentIds])]);
         } else {
             setSelectedLeads(prev => prev.filter(id => !currentIds.includes(id)));
         }
-    };
+    }, [currentLeads]);
 
-    const handleSelectOne = (id) => {
+    const handleSelectOne = useCallback((id) => {
         setSelectedLeads(prev =>
             prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
         );
-    };
+    }, []);
 
-    const handleViewLead = (lead) => {
-        navigate('/lead-details', { state: { singleLead: lead, results: originalLeads, queryInfo } });
-    };
+    const handleViewLead = useCallback(async (lead) => {
+        // Extract lead ID from various possible field names
+        const leadId = lead.id || lead.result_id || lead.MobileNumber || lead.mobile_number || lead.search_id;
+        
+        if (!leadId) {
+            navigate('/lead-details', { state: { singleLead: lead, results: originalLeads, queryInfo } });
+            return;
+        }
 
-    const handleDeleteLead = (id) => {
-        // Implementation for delete lead if needed
+        // SYNCHRONOUS guard: prevent concurrent calls using useRef
+        if (loadingLeadIdRef.current === leadId) {
+            console.log("⏳ [ReviewLeads] Already loading lead:", leadId);
+            return;
+        }
+
+        loadingLeadIdRef.current = leadId;
+        console.log("📡 [ReviewLeads] Starting API call for ID:", leadId);
+        
+        try {
+            const freshLeadData = await Api.getLeadById(leadId, adminToken);
+            console.log("✅ [ReviewLeads] API Response received for ID:", leadId);
+            
+            if (loadingLeadIdRef.current === leadId) {
+                if (freshLeadData) {
+                    const leadDataToUse = freshLeadData?.data || freshLeadData;
+                    navigate('/lead-details', { 
+                        state: { 
+                            singleLead: { ...lead, ...leadDataToUse }, 
+                            results: originalLeads, 
+                            queryInfo 
+                        } 
+                    });
+                } else {
+                    navigate('/lead-details', { state: { singleLead: lead, results: originalLeads, queryInfo } });
+                }
+            }
+        } catch (error) {
+            console.error('❌ [ReviewLeads] Error:', error);
+            if (loadingLeadIdRef.current === leadId) {
+                navigate('/lead-details', { state: { singleLead: lead, results: originalLeads, queryInfo } });
+            }
+        } finally {
+            loadingLeadIdRef.current = null;
+        }
+    }, [adminToken, originalLeads, queryInfo, navigate]);
+
+    const handleDeleteLead = useCallback((id) => {
         console.log("Delete lead:", id);
-    };
+    }, []);
 
     const enrichLeads = async () => {
         const leadsToPass = selectedLeads.length
@@ -198,6 +240,7 @@ const ReviewLeads = () => {
                     onSelectOne={handleSelectOne}
                     onViewLead={handleViewLead}
                     onDeleteLead={handleDeleteLead}
+                    isEnriching={isEnriching}
                 />
 
                 <Pagination

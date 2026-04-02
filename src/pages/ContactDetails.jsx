@@ -135,7 +135,7 @@ const ContactDetails = () => {
     const categoryStr = extractStr(getDeepField(finalLead, ['category', 'industry', 'Industry', 'niche', 'vertical']) || 'Uncategorized');
     const addressStr = extractStr(getDeepField(finalLead, ['address', 'location', 'Address', 'full_address', 'Location', 'full_location']) || 'N/A');
     const websiteStr = extractStr(getDeepField(finalLead, ['website', 'Website', 'url', 'website_url', 'domain', 'site_url']) || null, null);
-    const ownerName = extractStr(getDeepField(finalLead, ['full_name', 'contact_person', 'name', 'owner_name', 'rep_name', 'OwnerName', 'ContactPerson']) || 'N/A');
+    const ownerName = extractStr(getDeepField(finalLead, ['owner_name', 'full_name', 'contact_person', 'rep_name', 'representative_name', 'OwnerName', 'ContactPerson', 'person_name']) || 'N/A');
     const extractedSocials = scanSocials(finalLead);
 
     return (

@@ -35,7 +35,14 @@ const DeleteModal = ({ isOpen, onClose, type, data, onConfirm, isLoading }) => {
                         </button>
                         <button
                             className="flex-2 px-8 py-3.5 bg-red-500 hover:bg-red-600 text-white rounded-2xl text-xs font-bold shadow-xl shadow-red-100 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                            onClick={() => onConfirm(data?.id || data?.result_id || data?.MobileNumber)}
+                            onClick={() => {
+                                const idToDelete = data?.id || data?.result_id;
+                                if (!idToDelete) {
+                                    console.error("No valid ID found for deletion");
+                                    return;
+                                }
+                                onConfirm(idToDelete);
+                            }}
                             disabled={isLoading}
                         >
                             {isLoading ? (

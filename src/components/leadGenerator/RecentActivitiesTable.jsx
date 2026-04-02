@@ -52,7 +52,9 @@ const RecentActivitiesTable = ({
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {currentActivities.map((activity, idx) => {
-                                    const queryName = activity.query_name ?? 'N/A';
+                                    // Remove " – X leads" suffix from query name since it's already shown in LEADS column
+                                    const rawQueryName = activity.query_name ?? 'N/A';
+                                    const queryName = rawQueryName.replace(/\s*[-–—]\s*\d+\s+leads?$/i, '');
                                     const leadsCount = activity.search_details?.total_leads ?? activity.results?.length ?? 0;
                                     const rawDate = activity.search_details?.created_at ?? activity.created_at ?? null;
                                     const displayDate = rawDate

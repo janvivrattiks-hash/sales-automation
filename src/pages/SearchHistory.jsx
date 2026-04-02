@@ -67,6 +67,7 @@ const SearchHistory = () => {
                     niche: activity.search_details?.niche_or_keyword ?? activity.query_name ?? '', // get niche or keyword
                     city: activity.search_details?.location ?? '', // get location
                     area: activity.search_details?.area ?? 'NA', // get area
+                    job_id: activity.job_id, // pass job id for deletion
                 },
             },
         });

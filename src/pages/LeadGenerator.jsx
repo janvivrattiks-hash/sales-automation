@@ -60,17 +60,22 @@ const LeadGenerator = () => {
 
         setLoading(true);
         const response_data = await Api.addLead(apiData, adminToken);
+        console.log("🚩 [LeadGenerator] addLead response:", response_data);
 
         if (response_data) {
-            setLeads(response_data);
+            const results = response_data.results || [];
+            const jobId = response_data.job_id;
+            
+            setLeads(results);
             const queryInfo = {
                 niche: formData.niche,
                 city: formData.city,
                 area: formData.area,
                 count: formData.count,
+                job_id: jobId,
             };
             setFormData({ niche: '', city: '', area: '', count: '' });
-            navigate('/lead-details', { state: { results: response_data, queryInfo } });
+            navigate('/lead-details', { state: { results, queryInfo } });
         } else {
             setError('Failed to generate lead');
             setLoading(false);
@@ -86,6 +91,7 @@ const LeadGenerator = () => {
                     niche: activity.search_details?.niche_or_keyword ?? activity.query_name ?? '',
                     city: activity.search_details?.location ?? '',
                     area: activity.search_details?.area ?? 'NA',
+                    job_id: activity.job_id,
                 },
             },
         });

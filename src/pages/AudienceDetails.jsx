@@ -129,6 +129,7 @@ const AudienceDetails = () => {
     const [leads, setLeads] = useState([]);
     const [selectedLeads, setSelectedLeads] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [enriching, setEnriching] = useState(false);
 
     const [searchMetadata, setSearchMetadata] = useState({
         query: 'N/A',
@@ -242,6 +243,7 @@ const AudienceDetails = () => {
 
             console.log(`SET_LEADS: total strictly fetched leads = ${finalLeads.length}`);
             setLeads(finalLeads);
+            setLoading(false);
 
             // 7. Progressive Background Enrichment for Enriching missing data (Contact info, Rating, Socials)
             const leadsToEnrich = finalLeads.filter(l => 
@@ -253,6 +255,7 @@ const AudienceDetails = () => {
             );
 
             if (leadsToEnrich.length > 0) {
+                setEnriching(true);
                 console.log(`IN_PROGRESS: Enriching ${leadsToEnrich.length} minimal leads in background...`);
                 // Use a modest concurrency limit of 5 to avoid overloading the backend
                 const batchSize = 5;
@@ -285,6 +288,7 @@ const AudienceDetails = () => {
                     }
                 }
                 console.log("SUCCESS: Background enrichment cycle complete.");
+                setEnriching(false);
             }
 
         } catch (error) {
@@ -364,6 +368,7 @@ const AudienceDetails = () => {
                 audienceName={audienceName}
                 isEnriched={isEnriched}
                 loading={loading}
+                enriching={enriching}
                 navigate={navigate}
             />
 

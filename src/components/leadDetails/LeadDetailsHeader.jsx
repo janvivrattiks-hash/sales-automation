@@ -2,7 +2,7 @@ import React from 'react';
 import { ChevronRight, Trash2, Sparkles } from 'lucide-react';
 import Button from '../ui/Button';
 
-const LeadDetailsHeader = ({ navigate, leads, queryValue, cityValue, areaValue }) => {
+const LeadDetailsHeader = ({ navigate, leads, queryValue, cityValue, areaValue, onDeleteSearch }) => {
     return (
         <>
             {/* Breadcrumbs */}
@@ -21,7 +21,10 @@ const LeadDetailsHeader = ({ navigate, leads, queryValue, cityValue, areaValue }
                     <p className="text-gray-500 text-sm mt-1">View and manage the results of your lead generation query.</p>
                 </div>
                 <div className="flex flex-row gap-3">
-                    <button className="flex items-center gap-2 px-4 py-2 border border-red-100 text-red-500 rounded-lg hover:bg-red-50 transition-colors text-sm font-bold">
+                    <button 
+                        onClick={onDeleteSearch}
+                        className="flex items-center gap-2 px-4 py-2 border border-red-100 text-red-500 rounded-lg hover:bg-red-50 transition-colors text-sm font-bold"
+                    >
                         <Trash2 size={16} />
                         Delete Search
                     </button>

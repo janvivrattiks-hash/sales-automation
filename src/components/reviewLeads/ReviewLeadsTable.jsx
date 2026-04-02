@@ -8,7 +8,8 @@ const ReviewLeadsTable = ({
     onSelectAll, 
     onSelectOne, 
     onViewLead, 
-    onDeleteLead 
+    onDeleteLead,
+    isEnriching = false
 }) => {
     const allSelected = currentLeads.length > 0 && currentLeads.every(l => {
         const id = l.id || l.MobileNumber || l.mobile_number;
@@ -48,6 +49,7 @@ const ReviewLeadsTable = ({
                                 onSelect={onSelectOne}
                                 onView={onViewLead}
                                 onDelete={onDeleteLead}
+                                isEnriching={isEnriching}
                             />
                         ))
                     ) : (

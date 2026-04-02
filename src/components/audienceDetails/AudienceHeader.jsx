@@ -1,7 +1,7 @@
 import React from 'react';
 import { ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
 
-const AudienceHeader = ({ audienceName, isEnriched, loading, navigate }) => {
+const AudienceHeader = ({ audienceName, isEnriched, loading, enriching, navigate }) => {
     return (
         <>
             {/* Breadcrumbs */}
@@ -23,6 +23,9 @@ const AudienceHeader = ({ audienceName, isEnriched, loading, navigate }) => {
                             )}
                         </p>
                         {loading && <Loader2 size={14} className="animate-spin text-primary" />}
+                        {!loading && enriching && (
+                            <span className="text-xs font-bold text-primary bg-primary/10 rounded-lg px-2 py-0.5">Enriching contacts in background...</span>
+                        )}
                     </div>
                 </div>
                 <div className="flex flex-row gap-3">

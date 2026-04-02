@@ -5,6 +5,98 @@ const API_BASE_URL = import.meta.env.VITE_ENV === "DEV"
     ? import.meta.env.VITE_BASE_URL_PRODUCTION
     : import.meta.env.VITE_BASE_URL_DEVELOPMENT;
 
+// Request deduplication - prevents duplicate API calls
+const requestCache = {}; // Successful response cache
+const inFlightRequests = {}; // Tracks promises for in-flight requests
+const abortControllers = {}; // Abort controllers for cancellable requests
+const requestTimestamps = {}; // Track request timestamps to ignore stale responses
+const requestCounter = {}; // Count requests per key for debugging
+const CACHE_DURATION = 5000; // 5 seconds
+const activeRequests = new Set(); // Track CURRENTLY EXECUTING requests
+
+const isCacheValid = (cacheKey) => {
+    if (!requestCache[cacheKey]) return false;
+    const now = Date.now();
+    if (now - requestCache[cacheKey].timestamp > CACHE_DURATION) {
+        delete requestCache[cacheKey];
+        return false;
+    }
+    return true;
+};
+
+// Cancel previous request for same key and create new abort controller
+const createNewAbortController = (cacheKey) => {
+    // Cancel previous request if exists
+    if (abortControllers[cacheKey]) {
+        abortControllers[cacheKey].abort();
+        console.log("🛑 [API] Cancelled previous request for:", cacheKey);
+    }
+    // Create fresh abort controller
+    const controller = new AbortController();
+    abortControllers[cacheKey] = controller;
+    return controller;
+};
+
+// Main deduplication logic: prevents duplicate concurrent requests
+const executeWithDedup = async (cacheKey, executor) => {
+    // INCREMENT COUNTER FOR DEBUGGING
+    requestCounter[cacheKey] = (requestCounter[cacheKey] || 0) + 1;
+    const requestNum = requestCounter[cacheKey];
+    console.log(`🔢 Request #${requestNum}:`, cacheKey);
+
+    // CHECK 1: Is this request CURRENTLY EXECUTING? If yes, BLOCK the duplicate
+    if (activeRequests.has(cacheKey)) {
+        console.log(`🚫 Request #${requestNum} BLOCKED - already executing:`, cacheKey);
+        return await inFlightRequests[cacheKey];
+    }
+
+    // CHECK 2: Is result cached?
+    if (isCacheValid(cacheKey)) {
+        console.log(`⚡ Request #${requestNum} - cache HIT:`, cacheKey);
+        return requestCache[cacheKey].data;
+    }
+
+    // MARK AS ACTIVE IMMEDIATELY - THIS PREVENTS DUPLICATES
+    activeRequests.add(cacheKey);
+    console.log(`📡 Request #${requestNum} - MARKED ACTIVE:`, cacheKey);
+
+    // Create abort controller
+    const controller = new AbortController();
+    if (abortControllers[cacheKey]) {
+        abortControllers[cacheKey].abort(); // Cancel any previous
+    }
+    abortControllers[cacheKey] = controller;
+
+    // Make fresh request 
+    const now = Date.now();
+    requestTimestamps[cacheKey] = now;
+    const requestId = now;
+
+    const promise = executor(controller.signal).then(data => {
+        // Only cache if this is the latest request
+        if (requestTimestamps[cacheKey] === requestId) {
+            requestCache[cacheKey] = { data, timestamp: Date.now() };
+            activeRequests.delete(cacheKey);
+            delete inFlightRequests[cacheKey];
+            console.log(`✅ Request #${requestNum} - cached:`, cacheKey);
+            return data;
+        }
+        activeRequests.delete(cacheKey);
+        console.log(`⏭️ Request #${requestNum} - stale, ignored:`, cacheKey);
+        return null;
+    }).catch(error => {
+        activeRequests.delete(cacheKey);
+        delete inFlightRequests[cacheKey];
+        if (error.name !== 'AbortError') {
+            console.log(`❌ Request #${requestNum} - error:`, cacheKey, error?.message);
+        }
+        throw error;
+    });
+
+    inFlightRequests[cacheKey] = promise;
+    return await promise;
+};
+
 export default {
 
     Login: async (email, password) => { // login api
@@ -248,6 +340,78 @@ export default {
         }
     },
 
+    getLeadById: async (id, token, bypassCache = false) => { // get lead by id from search endpoint, with optional cache bypass
+        try { // try to get lead by id
+            if (!token) {
+                toast.error("Authentication token is missing. Please login again.");
+                return null;
+            }
+            
+            const cacheKey = `getLeadById_${id}`;
+            
+            // **BYPASS CACHE if requested (for fresh data after processing)**
+            if (bypassCache) {
+                console.log(`🔄 [API] FULL CACHE BYPASS for fresh data: ${cacheKey}`);
+                console.log(`   🗑️  Clearing: requestCache, inFlightRequests, activeRequests, requestTimestamps, abortControllers`);
+                
+                // Delete from cache
+                delete requestCache[cacheKey];
+                
+                // Delete from in-flight requests
+                delete inFlightRequests[cacheKey];
+                
+                // Remove from activeRequests SET (CRITICAL!)
+                activeRequests.delete(cacheKey);
+                
+                // Delete request timestamp (forces new request)
+                delete requestTimestamps[cacheKey];
+                
+                // Abort and delete abort controller
+                if (abortControllers[cacheKey]) {
+                    abortControllers[cacheKey].abort();
+                    delete abortControllers[cacheKey];
+                }
+                
+                console.log(`   ✅ Cache fully cleared for: ${cacheKey}`);
+            }
+            
+            return await executeWithDedup(cacheKey, async (signal) => {
+                // Add cache-busting timestamp if bypassing cache
+                let url = `${API_BASE_URL}/search/get_by_id/${id}`;
+                if (bypassCache) {
+                    url += `?nocache=${Date.now()}`;
+                    console.log(`📡 [API] Making fresh request with cache-bust: ${url}`);
+                }
+                
+                const res = await axios.get(url, {
+                    signal, // Pass abort signal for cancellation
+                    headers: {
+                        accept: "application/json",
+                        "Authorization": `Bearer ${token}`,
+                    },
+                });
+                
+                if (res.status === 200) {
+                    console.log("✅ [API] getLeadById completed for ID:", id);
+                    return res.data;
+                }
+            });
+        } catch (error) { // catch the error
+            // Ignore abort errors as they're expected when new request cancels old one
+            if (error.name === 'AbortError') {
+                console.log("🚫 [API] getLeadById cancelled for ID:", id);
+                return null;
+            }
+            console.error("❌ [API] getLeadById error:", error.message);
+            if (error.response?.status === 401) {
+                toast.error("Authentication failed. Token may be expired. Please login again.");
+            } else if (!error.message?.includes("cancelled")) {
+                toast.error("Failed to fetch lead");
+            }
+            return null;
+        }
+    },
+
     deleteJob: async (id, token) => { // delete job api
         try { // try to delete job
             if (!token) {
@@ -289,7 +453,7 @@ export default {
             });
             if (res.status === 200) { // if response is 200
                 console.log("Lead Deleted Successfully", res.data); // log the response data
-                return res.data; // return the response data
+                return true; // return true to indicate success
             }
         } catch (error) { // catch the error
             console.log("Error Details:", error.response || error); // log detailed error
@@ -297,6 +461,33 @@ export default {
                 toast.error("Authentication failed. Token may be expired. Please login again.");
             } else {
                 toast.error("Failed to delete lead"); // show error message
+            }
+            return null; // return null
+        }
+    },
+
+    deleteEnrichedLead: async (id, token) => { // delete enriched lead api
+        try { // try to delete enriched lead
+            if (!token) {
+                toast.error("Authentication token is missing. Please login again.");
+                return null;
+            }
+            const res = await axios.delete(`${API_BASE_URL}/enrichment/delete/${id}`, { // delete the enriched lead
+                headers: { // headers
+                    accept: "application/json", // accept
+                    "Authorization": `Bearer ${token}`, // bearer token
+                },
+            });
+            if (res.status === 200 || res.status === 204) { // if response is 200 or 204
+                console.log("Enriched Lead Deleted Successfully", res.data); // log the response data
+                return true; // return true to indicate success
+            }
+        } catch (error) { // catch the error
+            console.log("Error Details:", error.response || error); // log detailed error
+            if (error.response?.status === 401) {
+                toast.error("Authentication failed. Token may be expired. Please login again.");
+            } else {
+                toast.error("Failed to delete enriched lead"); // show error message
             }
             return null; // return null
         }
@@ -321,8 +512,8 @@ export default {
                 },
             });
             if (res.status === 200) { // if response is 200
-                console.log("Lead Generation Response", res.data.results); // log the response data
-                return res.data.results; // return the response data
+                console.log("Lead Generation Response", res.data); // log the response data
+                return res.data; // return the whole response object (including job_id and results)
             }
             else {
                 toast.error("Failed to fetch lead generation"); // show error message
@@ -456,7 +647,7 @@ export default {
         }
     },
 
-    deleteLead: async (id, token) => {
+    deleteContact: async (id, token) => {
         try {
             if (!token) {
                 toast.error("Authentication token is missing. Please login again.");
@@ -469,12 +660,12 @@ export default {
                 },
             });
             if (res.status === 200 || res.status === 204) {
-                console.log("API_SUCCESS: Lead deleted successfully from server (ID:", id, ")");
+                console.log("API_SUCCESS: Contact deleted successfully from server (ID:", id, ")");
                 return true;
             }
             return false;
         } catch (error) {
-            console.log("Delete Lead Error:", error.response || error);
+            console.log("Delete Contact Error:", error.response || error);
             toast.error("Failed to delete contact");
             return false;
         }

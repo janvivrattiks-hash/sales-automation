@@ -4,7 +4,7 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import StarRating from '../ui/StarRating';
 
-const LeadDetailsTable = ({ leads, viewingId, deletingId, onViewLead, onDeleteLead }) => {
+const LeadDetailsTable = ({ leads, processingLeadId, onViewLead, onDeleteLead }) => {
     return (
         <Card noPadding className="overflow-hidden">
             <div className="overflow-x-auto">
@@ -21,7 +21,11 @@ const LeadDetailsTable = ({ leads, viewingId, deletingId, onViewLead, onDeleteLe
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                        {leads.map((lead, index) => (
+                        {leads.map((lead, index) => {
+                            const leadId = lead?.result_id || lead?.id || lead?.lead_id;
+                            const isProcessing = processingLeadId === leadId;
+                            
+                            return (
                             <tr
                                 key={lead.id || index}
                                 className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors cursor-pointer"
@@ -60,27 +64,41 @@ const LeadDetailsTable = ({ leads, viewingId, deletingId, onViewLead, onDeleteLe
                                 <td className="px-8 py-6 text-right">
                                     <div className="flex items-center justify-end gap-4">
                                         <button
-                                            onClick={() => onViewLead(lead)}
-                                            disabled={viewingId === lead.id}
-                                            className="text-gray-400 hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onViewLead(lead);
+                                            }}
+                                            disabled={isProcessing}
+                                            className={`transition-colors ${
+                                                isProcessing
+                                                    ? 'text-gray-300 cursor-not-allowed opacity-50'
+                                                    : 'text-gray-400 hover:text-primary'
+                                            }`}
+                                            type="button"
+                                            title={isProcessing ? "This lead is being processed" : "View details"}
                                         >
-                                            {viewingId === lead.id
-                                                ? <Loader2 size={18} className="animate-spin" />
-                                                : <Eye size={18} />}
+                                            <Eye size={18} />
                                         </button>
                                         <button
-                                            onClick={() => onDeleteLead(lead)}
-                                            disabled={deletingId === lead.id}
-                                            className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onDeleteLead(lead);
+                                            }}
+                                            disabled={isProcessing}
+                                            className={`transition-colors ${
+                                                isProcessing
+                                                    ? 'text-gray-300 cursor-not-allowed opacity-50'
+                                                    : 'text-gray-400 hover:text-red-500'
+                                            }`}
+                                            type="button"
                                         >
-                                            {deletingId === lead.id
-                                                ? <Loader2 size={18} className="animate-spin" />
-                                                : <Trash size={18} />}
+                                            <Trash size={18} />
                                         </button>
                                     </div>
                                 </td>
                             </tr>
-                        ))}
+                        );
+                        })}
                     </tbody>
                 </table>
             </div>

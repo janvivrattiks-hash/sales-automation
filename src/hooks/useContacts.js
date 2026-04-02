@@ -1,4 +1,5 @@
 import { useState, useCallback, useContext } from 'react';
+import { toast } from 'react-toastify';
 import Api from '../../scripts/Api';
 import { AppContext } from '../context/AppContext';
 
@@ -219,19 +220,39 @@ export const useContacts = (navigate) => {
     };
 
     const handleDeleteLead = async (id, isEnriched) => {
+        if (!id) {
+            toast.error("Invalid contact ID. Cannot delete.");
+            return false;
+        }
         setDeletingId(id);
         try {
-            const success = await Api.deleteLead(id, adminToken);
+            console.log(`🗑️ Deleting contact ID: ${id} (${isEnriched ? 'enriched' : 'raw'})`);
+            
+            // Call the correct API based on data type
+            let success;
+            if (isEnriched) {
+                console.log(`📡 Using enrichment delete endpoint for enriched data`);
+                success = await Api.deleteEnrichedLead(id, adminToken);
+            } else {
+                console.log(`📡 Using search delete endpoint for raw data`);
+                success = await Api.deleteLead(id, adminToken);
+            }
+            
             if (success) {
                 toast.success("Contact deleted successfully");
                 if (isEnriched) setEnrichedContacts(prev => prev.filter(l => (l.id || l.result_id) !== id));
                 else setRawContacts(prev => prev.filter(l => (l.id || l.result_id) !== id));
+                return true;
+            } else {
+                toast.error("Failed to delete contact. Please try again.");
             }
         } catch (error) {
             console.error("Failed to delete lead:", error);
+            toast.error("Failed to delete contact. Please try again.");
         } finally {
             setDeletingId(null);
         }
+        return false;
     };
     
     const handleDeleteAudience = async (id) => {

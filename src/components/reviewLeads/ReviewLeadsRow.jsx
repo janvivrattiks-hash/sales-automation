@@ -1,15 +1,18 @@
-import React from 'react';
-import { Eye, Trash2 } from 'lucide-react';
+import React, { useState, memo } from 'react';
+import { Eye, Trash2, Loader2 } from 'lucide-react';
 import StarRating from '../ui/StarRating';
+import DataProcessingModal from './DataProcessingModal';
 
-const ReviewLeadsRow = ({ 
+const ReviewLeadsRow = memo(({ 
     lead, 
     isSelected, 
     onSelect, 
     onView, 
-    onDelete 
+    onDelete,
+    isEnriching = false
 }) => {
     const id = lead.id || lead.MobileNumber || lead.mobile_number;
+    const [showProcessingModal, setShowProcessingModal] = useState(false);
 
     return (
         <tr className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors cursor-pointer">
@@ -53,13 +56,22 @@ const ReviewLeadsRow = ({
             <td className="px-8 py-6 text-right">
                 <div className="flex items-center justify-end gap-3 text-gray-300">
                     <button
-                        className="p-2 hover:text-primary transition-colors hover:bg-primary/5 rounded-lg active:scale-90"
+                        className={`p-2 rounded-lg active:scale-90 transition-colors ${isEnriching ? 'text-blue-500 hover:text-blue-600 hover:bg-blue-50' : 'hover:text-primary hover:bg-primary/5'}`}
                         onClick={(e) => {
                             e.stopPropagation();
-                            onView(lead);
+                            if (isEnriching) {
+                                setShowProcessingModal(true);
+                            } else {
+                                onView(lead);
+                            }
                         }}
+                        title={isEnriching ? 'Data is processing...' : ''}
                     >
-                        <Eye size={18} />
+                        {isEnriching ? (
+                            <Loader2 size={18} className="animate-spin" />
+                        ) : (
+                            <Eye size={18} />
+                        )}
                     </button>
                     <button 
                         className="p-2 hover:text-red-500 transition-colors hover:bg-red-50 rounded-lg active:scale-90"
@@ -71,9 +83,21 @@ const ReviewLeadsRow = ({
                         <Trash2 size={18} />
                     </button>
                 </div>
+
+                <DataProcessingModal
+                    isOpen={showProcessingModal}
+                    leadName={lead.name || lead.BusinessName || lead.business_name || 'Lead'}
+                    onClose={() => setShowProcessingModal(false)}
+                    onViewData={() => {
+                        setShowProcessingModal(false);
+                        onView(lead);
+                    }}
+                />
             </td>
         </tr>
     );
-};
+});
+
+ReviewLeadsRow.displayName = 'ReviewLeadsRow';
 
 export default ReviewLeadsRow;

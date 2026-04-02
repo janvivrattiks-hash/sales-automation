@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users } from 'lucide-react';
 import StatCard from '../components/ui/StatCard';
@@ -28,6 +28,7 @@ const Dashboard = () => {
     const [leads, setLeads] = useState([]);
     const [loading, setLoading] = useState(true);
     const [viewingId, setViewingId] = useState(null);
+    const loadingLeadIdRef = useRef(null); // Synchronous ref to prevent concurrent calls
     const [deleteModal, setDeleteModal] = useState({ open: false, lead: null });
     const [deletingId, setDeletingId] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
@@ -102,7 +103,7 @@ const Dashboard = () => {
         fetchData();
     }, [adminToken]);
 
-    const handleDeleteConfirm = async () => {
+    const handleDeleteConfirm = useCallback(async () => {
         const lead = deleteModal.lead;
         if (!lead?.result_id) return;
         setDeletingId(lead.result_id);
@@ -115,21 +116,43 @@ const Dashboard = () => {
         } finally {
             setDeletingId(null);
         }
-    };
+    }, [deleteModal.lead, adminToken]);
 
-    const handleViewLead = async (lead) => {
-        const resultId = lead.result_id;
+    const handleViewLead = useCallback(async (lead) => {
+        const resultId = lead.result_id || lead.id;
         if (!resultId) return;
+        
+        // SYNCHRONOUS guard: prevent concurrent calls using useRef
+        if (loadingLeadIdRef.current === resultId) {
+            console.log("⏳ [Dashboard] Already loading lead:", resultId);
+            return;
+        }
+
+        loadingLeadIdRef.current = resultId;
         setViewingId(lead.id);
+        console.log("📡 [Dashboard] Starting API call for ID:", resultId);
+        
         try {
-            const data = await Api.getSingleLead(resultId, adminToken);
-            if (data?.data) {
-                navigate('/lead-details', { state: { singleLead: data.data } });
+            const data = await Api.getLeadById(resultId, adminToken);
+            console.log("✅ [Dashboard] API Response received for ID:", resultId);
+            
+            if (loadingLeadIdRef.current === resultId) {
+                if (data) {
+                    navigate('/lead-details', { state: { singleLead: data } });
+                } else {
+                    navigate('/lead-details', { state: { singleLead: lead } });
+                }
+            }
+        } catch (error) {
+            console.error('❌ [Dashboard] Error:', error);
+            if (loadingLeadIdRef.current === resultId) {
+                navigate('/lead-details', { state: { singleLead: lead } });
             }
         } finally {
             setViewingId(null);
+            loadingLeadIdRef.current = null;
         }
-    };
+    }, [adminToken, navigate]);
 
     const startIndex = (currentPage - 1) * itemsPerPage;
     const currentLeads = leads.slice(startIndex, startIndex + itemsPerPage);

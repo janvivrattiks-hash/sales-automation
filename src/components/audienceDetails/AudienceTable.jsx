@@ -23,7 +23,7 @@ const AudienceTable = ({ leads, loading, isEnriched, viewingId, onViewContact })
                     <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-10">
                         <div className="flex flex-col items-center gap-2">
                             <Loader2 className="animate-spin text-primary" size={40} />
-                            <p className="text-[10px] font-black uppercase tracking-widest text-primary animate-pulse">Syncing Segment...</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-primary animate-pulse">Loading Segment...</p>
                         </div>
                     </div>
                 )}
