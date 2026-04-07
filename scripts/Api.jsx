@@ -237,6 +237,35 @@ export default {
 
         }
     },
+
+    getNonEnriched: async (token) => {
+        try {
+            if (!token) {
+                toast.error("Authentication token is missing. Please login again.");
+                return null;
+            }
+            const res = await axios.get(`${API_BASE_URL}/search/non-enriched`, {
+                headers: {
+                    accept: "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            if (res.status === 200) {
+                console.log("Non-Enriched Leads Response:", res.data);
+                return res.data;
+            }
+            return null;
+        } catch (error) {
+            console.error("Non-Enriched Leads Error:", error.response || error);
+            if (error.response?.status === 401) {
+                toast.error("Authentication failed. Token may be expired. Please login again.");
+            } else {
+                toast.error("Failed to fetch raw leads.");
+            }
+            return null;
+        }
+    },
+
     getEnrichment: async (token) => { // GET /enrichment/get — fetch all enriched leads
         try {
             if (!token) {
@@ -671,6 +700,32 @@ export default {
         }
     },
 
+    removeBusinessFromAudience: async (audienceId, businessId, token) => {
+        try {
+            if (!token) {
+                toast.error("Authentication token is missing. Please login again.");
+                return null;
+            }
+            const res = await axios.delete(`${API_BASE_URL}/audiance/${audienceId}/business/${businessId}`, {
+                headers: {
+                    accept: "*/*",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            if (res.status === 200 || res.status === 204) {
+                console.log(`API_SUCCESS: Business ${businessId} removed from audience ${audienceId}`);
+                toast.success('Business removed from audience successfully.');
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error("Remove Business from Audience Error:", error.response || error);
+            const message = error.response?.data?.detail || "Failed to remove business from audience.";
+            toast.error(message);
+            return false;
+        }
+    },
+
     getAudienceDetails: async (id, token) => {
         try {
             if (!token) {
@@ -728,7 +783,8 @@ export default {
                     );
                     // Return the enriched data combined with existing lead info
                     console.log(`Enrichment successful for: ${payload.business_name}`, response.data);
-                    return { ...lead, ...response.data, status: 'Enriched' };
+                    // Explicitly preserve the business ID as poi_id so it doesn't get lost
+                    return { ...lead, ...response.data, poi_id: lead.poi_id || lead.id || lead.result_id, status: 'Enriched' };
                 } catch (error) {
                     console.error(`Enrichment failed for lead: ${payload.business_name}`, error.response?.data || error.message);
                     // Return original lead so we don't lose it from the list
@@ -810,6 +866,25 @@ export default {
         }
     },
 
+    getNotesByBusinessId: async (businessId, token) => {
+        try {
+            if (!token || !businessId) return null;
+            const res = await axios.get(`${API_BASE_URL}/contact_managment/notes/business/${businessId}`, {
+                headers: {
+                    accept: "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            if (res.status === 200) {
+                return res.data;
+            }
+            return null;
+        } catch (error) {
+            console.error("Get Notes by Business ID Error:", error.response?.data || error.message);
+            return null;
+        }
+    },
+
     deleteNote: async (id, token) => { // delete note api
         try {
             if (!token) {
@@ -868,6 +943,8 @@ export default {
             params.append('description', data.description || '');
             params.append('due_date', data.due_date || '');
             params.append('status', data.status || '');
+            if (data.business_id) params.append('business_id', data.business_id);
+
 
             const res = await axios.post(
                 `${API_BASE_URL}/contact_managment/tasks/`,
@@ -969,6 +1046,24 @@ export default {
         }
     },
 
+    getTasksByBusinessId: async (businessId, token) => {
+        try {
+            if (!token || !businessId) return [];
+            const url = `${API_BASE_URL}/contact_managment/tasks/business/${businessId}`;
+            const res = await axios.get(url, {
+                headers: {
+                    accept: "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            console.log("Get Tasks By Business API Response:", res?.data);
+            return res?.data || [];
+        } catch (error) {
+            console.error("Get Tasks By Business Error:", error?.response?.data || error.message);
+            return [];
+        }
+    },
+
     getSummary: async (id, token) => { // get summary api - VERSION 3.0
         try {
             if (!token) return null;
@@ -1042,10 +1137,63 @@ export default {
         }
     },
 
-    getEmailActivityStatus: async (token, id) => { // GET /contact_managment/activity/business/{id}/emails
+    processContactInfo: async (id, token) => {
+        try {
+            if (!token || !id) return null;
+            // Passed in both URL as path (fallback) and payload/query to handle various backend patterns.
+            // As user provided just /process in curl, we pass id in query/body natively.
+            const payload = { poi_id: id, business_id: id, id: id };
+            const res = await axios.post(`${API_BASE_URL}/contact_managment/contact_info/process`, payload, {
+                params: { poi_id: id, business_id: id },
+                headers: {
+                    "accept": "application/json",
+                    "Authorization": `Bearer ${token}`
+                }
+            });
+            return res.data;
+        } catch (error) {
+            console.error("processContactInfo Error:", error.message);
+            // Fallback try with ID in path just in case
+            try {
+                 const res = await axios.post(`${API_BASE_URL}/contact_managment/contact_info/process/${id}`, { poi_id: id, business_id: id }, {
+                    headers: { "accept": "application/json", "Authorization": `Bearer ${token}` }
+                 });
+                 return res.data;
+            } catch (err2) {
+                 return null;
+            }
+        }
+    },
+
+    processSummary: async (id, token) => {
+        try {
+            if (!token || !id) return null;
+            const payload = { poi_id: id, business_id: id, id: id };
+            const res = await axios.post(`${API_BASE_URL}/contact_managment/summary/process`, payload, {
+                params: { poi_id: id, business_id: id },
+                headers: {
+                    "accept": "application/json",
+                    "Authorization": `Bearer ${token}`
+                }
+            });
+            return res.data;
+        } catch (error) {
+            console.error("processSummary Error:", error.message);
+            try {
+                 const res = await axios.post(`${API_BASE_URL}/contact_managment/summary/process/${id}`, { poi_id: id, business_id: id }, {
+                    headers: { "accept": "application/json", "Authorization": `Bearer ${token}` }
+                 });
+                 return res.data;
+            } catch (err2) {
+                 return null;
+            }
+        }
+    },
+
+    getEmailActivityStatus: async (token, id) => { // GET /contact_managment/activity/business/{id}/email-status
         try {
             if (!token || !id) return [];
-            const url = `${API_BASE_URL}/contact_managment/activity/business/${id}/emails`;
+            const url = `${API_BASE_URL}/contact_managment/activity/business/${id}/email-status`;
             const res = await axios.get(url, {
                 headers: {
                     accept: "application/json",
@@ -1388,6 +1536,11 @@ export default {
             console.log("Get Profile Picture Error:", error.response || error);
             return null;
         }
+    },
+
+    getProfilePictureUrl: (adminId) => {
+        if (!adminId) return null;
+        return `${API_BASE_URL}/admin/business-information/profile-picture/${adminId}`;
     },
 
     deleteProfilePicture: async (adminId) => {

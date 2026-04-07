@@ -12,11 +12,33 @@ import { exportLeadsCSV } from '../utils/exportCsvHelper';
 import EnrichedStatsRow from '../components/finalEnrichedLeads/EnrichedStatsRow';
 import EnrichedLeadsTable from '../components/finalEnrichedLeads/EnrichedLeadsTable';
 import SaveAudienceModal from '../components/finalEnrichedLeads/SaveAudienceModal';
+import DeleteConfirmModal from '../components/ui/DeleteConfirmModal';
 
 const FinalEnrichedLeads = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { leads: contextLeads, adminToken } = useContext(AppContext);
+
+    // ── Helper to extract the core Business/POI ID ────────────────────────────
+    const extractBusinessId = (lead) => {
+        if (!lead) return null;
+        
+        // 1. Prioritize the main 'id' field as it holds the verified business ID 
+        // after enrichment (verified by DB schema).
+        if (lead.id) return lead.id;
+
+        // 2. Fallback to specialized fields (preserved from pre-enrichment search results)
+        const knownId = lead.poi_id || lead.business_id || lead.result_id;
+        if (knownId) return knownId;
+
+        // 3. Robust scan for ANY UUID field (Last resort fallback)
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        for (const [key, value] of Object.entries(lead)) {
+            if (typeof value === 'string' && uuidPattern.test(value)) return value;
+        }
+
+        return null;
+    };
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [audienceData, setAudienceData] = useState({
@@ -36,9 +58,15 @@ const FinalEnrichedLeads = () => {
         return () => clearTimeout(timer);
     }, []);
 
+    // ── Delete Modal State ───────────────────────────────────────────────────
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [leadToDelete, setLeadToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
     // ── Data Ingestion ────────────────────────────────────────────────────────
-    const rawLeads = location.state?.results || contextLeads || [];
-    const leadsData = Array.isArray(rawLeads) ? rawLeads : (rawLeads.results || rawLeads.data || []);
+    const rawLeadsFromState = location.state?.results || contextLeads || [];
+    const initialLeads = Array.isArray(rawLeadsFromState) ? rawLeadsFromState : (rawLeadsFromState.results || rawLeadsFromState.data || []);
+    const [leadsData, setLeadsData] = useState(initialLeads);
     const queryInfo = location.state?.queryInfo || {};
 
     // ── Multi-tier De-duplication ─────────────────────────────────────────────
@@ -46,7 +74,7 @@ const FinalEnrichedLeads = () => {
     const seenLeadKeys = new Set();
     (leadsData || []).forEach(lead => {
         if (!lead) return;
-        const id = lead.id || lead.result_id || null;
+        const id = extractBusinessId(lead);
         const rawName = lead.name || lead.BusinessName || lead.business_name || '';
         const rawAddr = lead.address || lead.Address || lead.full_address || lead.location || '';
         const normName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -100,7 +128,12 @@ const FinalEnrichedLeads = () => {
 
     // ── Save Audience ─────────────────────────────────────────────────────────
     const handleSaveAudience = async () => {
-        const ids = (filteredLeads || []).map(l => l.id || l.result_id).filter(Boolean);
+        const ids = (filteredLeads || []).map(l => {
+            const bizId = extractBusinessId(l);
+            console.log(`📍 [Audience] Mapping lead '${l.name || 'N/A'}' to ID: ${bizId}`, l);
+            return bizId;
+        }).filter(Boolean);
+        
         const payload = {
             audiance_name: audienceData.audiance_name,
             discription: audienceData.discription,
@@ -119,6 +152,38 @@ const FinalEnrichedLeads = () => {
             }
         } catch (error) {
             console.error('Error saving audience:', error);
+        }
+    };
+
+    // ── Delete Functionality ──────────────────────────────────────────────────
+    const handleDeleteClick = (lead) => {
+        setLeadToDelete(lead);
+        setIsDeleteModalOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!leadToDelete) return;
+        
+        const backendId = extractBusinessId(leadToDelete);
+        if (!backendId) {
+            console.error("No ID found for deletion");
+            return;
+        }
+
+        setIsDeleting(true);
+        try {
+            console.log(`📡 Deleting enriched lead: ${backendId}`);
+            const success = await Api.deleteEnrichedLead(backendId, adminToken);
+            if (success) {
+                // Update local state
+                setLeadsData(prev => prev.filter(l => extractBusinessId(l) !== backendId));
+                setIsDeleteModalOpen(false);
+                setLeadToDelete(null);
+            }
+        } catch (error) {
+            console.error("Delete Error:", error);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -146,6 +211,7 @@ const FinalEnrichedLeads = () => {
                 navigate={navigate}
                 queryInfo={queryInfo}
                 leads={leads}
+                onDeleteLead={handleDeleteClick}
             />
 
             {/* Action Bar */}
@@ -166,6 +232,15 @@ const FinalEnrichedLeads = () => {
                 uiTags={uiTags}
                 setUiTags={setUiTags}
                 onSave={handleSaveAudience}
+            />
+
+            <DeleteConfirmModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={handleConfirmDelete}
+                isDeleting={isDeleting}
+                title="Delete Enriched Lead?"
+                description={`Are you sure you want to delete ${leadToDelete?.name || 'this lead'}? This action cannot be undone.`}
             />
         </div>
     );

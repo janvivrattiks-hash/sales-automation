@@ -1,6 +1,20 @@
 import React from 'react';
-import { Calendar, Clock, ArrowRight } from 'lucide-react';
+import { Calendar, Clock, Mail, Send, CheckCircle, Eye, MousePointerClick, AlertCircle } from 'lucide-react';
 import { formatDateTime } from '../../utils/dataHelpers.jsx';
+
+const getEventIcon = (eventName) => {
+    switch (eventName?.toLowerCase()) {
+        case 'processed': return <Mail size={12} className="text-gray-400" />;
+        case 'delivered': return <CheckCircle size={12} className="text-green-500" />;
+        case 'open': return <Eye size={12} className="text-blue-500" />;
+        case 'click': return <MousePointerClick size={12} className="text-purple-500" />;
+        case 'bounce':
+        case 'dropped':
+        case 'spamreport':
+            return <AlertCircle size={12} className="text-red-500" />;
+        default: return <Send size={12} className="text-gray-400" />;
+    }
+};
 
 const ActivityTab = ({ activityLogs, isLoadingActivity }) => {
     if (isLoadingActivity) {
@@ -11,46 +25,73 @@ const ActivityTab = ({ activityLogs, isLoadingActivity }) => {
         );
     }
 
-    if (activityLogs.length === 0) {
+    if (!activityLogs || activityLogs.length === 0) {
         return (
             <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
                 <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Calendar className="text-gray-300" size={32} />
                 </div>
                 <h3 className="text-gray-900 font-bold mb-1">No Activity Yet</h3>
-                <p className="text-gray-400 text-sm max-w-xs mx-auto">Historical activity will appear here once outreach begins.</p>
+                <p className="text-gray-400 text-sm max-w-xs mx-auto">Historical tracking will appear here once outreach begins.</p>
             </div>
         );
     }
 
     return (
-        <div className="relative pl-8 space-y-8 animate-in fade-in duration-500">
-            {/* Vertical Line */}
-            <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-gray-100"></div>
-
+        <div className="space-y-6 animate-in fade-in duration-500">
             {activityLogs.map((log, index) => (
-                <div key={index} className="relative group">
-                    {/* Activity Dot */}
-                    <div className="absolute -left-[25px] top-1.5 w-3 h-3 rounded-full border-2 border-white bg-primary shadow-[0_0_0_4px_rgba(59,130,246,0.1)] group-hover:scale-125 transition-transform duration-300"></div>
-
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="space-y-1">
-                            <h4 className="font-bold text-gray-900 group-hover:text-primary transition-colors">{log.activity_type || 'Engagement'}</h4>
-                            <p className="text-sm text-gray-500 leading-relaxed max-w-2xl">{log.description || 'Interacted with lead via outreach channel.'}</p>
-                            <div className="flex items-center gap-4 pt-1">
-                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                                    <Clock size={12} /> {formatDateTime(log.timestamp || log.created_at)}
+                <div key={index} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    {/* Header: Email Subject & Status */}
+                    <div className="p-5 border-b border-gray-50 flex items-center justify-between bg-gray-50/50">
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                                <Mail size={18} />
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-gray-900 text-base">{log.subject || 'Outreach Email'}</h4>
+                                <div className="text-xs text-gray-500 flex items-center gap-2 mt-1">
+                                    <span className="font-medium text-gray-600">To: {log.recipient_email || 'Unknown'}</span>
+                                    {log.sent_at && (
+                                        <>
+                                            <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                                            <span className="flex items-center gap-1 font-medium">
+                                                <Clock size={10} /> {formatDateTime(log.sent_at)}
+                                            </span>
+                                        </>
+                                    )}
                                 </div>
-                                {log.channel && (
-                                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-bold rounded-md uppercase tracking-wider">{log.channel}</span>
-                                )}
                             </div>
                         </div>
+                        <div className="flex flex-col items-end">
+                            <span className="px-3 py-1.5 bg-gray-100 text-gray-600 text-[10px] font-black uppercase tracking-wider rounded-lg border border-gray-200 shadow-sm">
+                                Status: {log.current_status || 'Unknown'}
+                            </span>
+                        </div>
+                    </div>
 
-                        {log.details_url && (
-                            <button className="flex items-center gap-2 text-xs font-bold text-primary group-hover:translate-x-1 transition-transform">
-                                View Details <ArrowRight size={14} />
-                            </button>
+                    {/* History Timeline */}
+                    <div className="p-6 relative">
+                        {(!log.history || log.history.length === 0) ? (
+                            <p className="text-sm text-gray-400 italic">No tracking history available.</p>
+                        ) : (
+                            <div className="relative pl-6 space-y-6">
+                                {/* Vertical Line */}
+                                <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-gray-100"></div>
+                                
+                                {log.history.map((histEvent, hIndex) => (
+                                    <div key={hIndex} className="relative flex items-start gap-4 group">
+                                        <div className="absolute -left-[24px] top-0 w-6 h-6 rounded-full bg-white border border-gray-200 flex items-center justify-center group-hover:scale-110 group-hover:border-primary/30 transition-transform shadow-sm">
+                                            {getEventIcon(histEvent.event_name)}
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-800 capitalize leading-none">{histEvent.event_name}</p>
+                                            <p className="text-[11px] font-medium text-gray-400 mt-1.5 flex items-center gap-1">
+                                                <Clock size={10} /> {formatDateTime(histEvent.processed)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
                 </div>

@@ -2,8 +2,8 @@ import React from 'react';
 import { Eye, Trash2 } from 'lucide-react';
 import StarRating from '../ui/StarRating';
 
-const EnrichLeadRow = ({ lead, index, isSelected, onToggleSelect, navigate, queryValue, cityValue, areaValue, leads }) => {
-    const leadId = lead.id || lead.MobileNumber;
+const EnrichLeadRow = ({ lead, index, isSelected, onToggleSelect, navigate, queryValue, cityValue, areaValue, leads, onDelete }) => {
+    const leadId = lead.id || lead.MobileNumber || lead.result_id || lead.business_information_id;
 
     const handleViewLead = () => {
         navigate('/lead-details', {
@@ -89,7 +89,13 @@ const EnrichLeadRow = ({ lead, index, isSelected, onToggleSelect, navigate, quer
                     >
                         <Eye size={18} />
                     </button>
-                    <button className="p-2 hover:text-red-500 transition-colors hover:bg-red-50 rounded-lg active:scale-90">
+                    <button 
+                        className="p-2 hover:text-red-500 transition-colors hover:bg-red-50 rounded-lg active:scale-90"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete && onDelete(leadId);
+                        }}
+                    >
                         <Trash2 size={18} />
                     </button>
                 </div>

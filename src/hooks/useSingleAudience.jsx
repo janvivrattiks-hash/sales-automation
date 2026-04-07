@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Api from '../../scripts/Api';
 import { findField, extractString, getDeepField } from '../utils/dataHelpers.jsx';
@@ -40,14 +41,48 @@ const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
     // Initial Fetch
     useEffect(() => {
         if (!leadId) return;
-        fetchContactInfo(); // Fetch enriched contact info first to populate sidebar
-        fetchSummary();
-        fetchPOIDetails();
-        fetchMessages();
-        fetchActivity();
-        fetchNotes();
-        fetchTasks();
+        
+        const fetchAllData = async () => {
+            // Sequential Contact Info (POST then GET)
+            await processAndFetchContactInfo();
+
+            // Parallel Summary execution (POST then GET) runs alongside the other parallel fetches
+            processAndFetchSummary();
+            
+            // Only fetch POI Details; other tabs will be lazy loaded on click
+            fetchPOIDetails();
+        };
+
+        fetchAllData();
     }, [leadId]);
+
+    const processAndFetchContactInfo = async () => {
+        try {
+            setIsLoadingContactInfo(true);
+            const token = localStorage.getItem('admin_token');
+            // 1. Process API (POST)
+            await Api.processContactInfo(leadId, token);
+            // 2. Fetch API (GET)
+            await fetchContactInfo();
+        } catch (err) {
+            console.error("Error in contact info processing sequence:", err);
+            setIsLoadingContactInfo(false);
+        }
+    };
+
+    const processAndFetchSummary = async () => {
+        try {
+            setIsLoadingSummary(true);
+            const token = localStorage.getItem('admin_token');
+            // 1. Process API (POST)
+            await Api.processSummary(leadId, token);
+            // 2. Fetch API (GET)
+            await fetchSummary();
+        } catch (err) {
+            console.error("Error in summary processing sequence:", err);
+            setIsLoadingSummary(false);
+        }
+    };
 
     // Fetching Logic
 
@@ -122,10 +157,12 @@ const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
     };
 
     const fetchActivity = async () => {
+        console.log("Triggering fetchActivity API for leadId:", leadId);
         try {
             setIsLoadingActivity(true);
             const token = localStorage.getItem('admin_token');
             const data = await Api.getEmailActivityStatus(token, leadId);
+            console.log("fetchActivity API Response:", data);
             setActivityLogs(data || []);
         } catch (error) {
             console.error('Error fetching activity:', error);
@@ -139,7 +176,7 @@ const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
         try {
             setIsLoadingNotes(true);
             const token = localStorage.getItem('admin_token');
-            const data = await Api.getNotes(token, 0, 100);
+            const data = await Api.getNotesByBusinessId(leadId, token);
 
             // 1. Ultimate Recursive Array Discovery
             const findArray = (obj) => {
@@ -154,28 +191,7 @@ const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
 
             const rawNotes = findArray(data) || [];
 
-            // 2. Smart Filtering with Fallback
-            const currentLeadIdStr = String(leadId || '').trim();
-
-            const filtered = rawNotes.filter(note => {
-                if (!note) return false;
-                const noteLeadId = String(note.lead_id || note.business_id || note.target_id || '').trim();
-                return noteLeadId === currentLeadIdStr;
-            });
-
-            // 3. FALLBACK: If filtering yields 0 but we received notes, show them all
-            const itemsToShow = (filtered.length > 0)
-                ? filtered
-                : rawNotes.map(n => ({ ...n, isGlobal: true }));
-
-            console.log(`FETCH_NOTES_ULTIMATE_AUDIT [Lead: ${currentLeadIdStr}]:`, {
-                received: rawNotes.length,
-                filtered: filtered.length,
-                isFallbackMode: filtered.length === 0 && rawNotes.length > 0,
-                sample: itemsToShow[0]
-            });
-
-            setNotesList(itemsToShow);
+            setNotesList(rawNotes);
         } catch (error) {
             console.error('Error fetching notes:', error);
             setNotesList([]);
@@ -202,13 +218,62 @@ const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
         try {
             setIsLoadingTasks(true);
             const token = localStorage.getItem('admin_token');
-            // getTasks(token, skip, limit)
-            const data = await Api.getTasks(token);
+            const data = await Api.getTasksByBusinessId(leadId, token);
             setTasksList(data || []);
         } catch (error) {
             console.error('Error fetching tasks:', error);
         } finally {
             setIsLoadingTasks(false);
+        }
+    };
+
+    // Lazy load tab data when a user navigates to it
+    useEffect(() => {
+        console.log("Tab lazy loading trigger: activeTab =", activeTab, "leadId =", leadId);
+        if (!leadId) return;
+
+        switch (activeTab) {
+            case 'messages':
+                fetchMessages();
+                break;
+            case 'activity':
+                fetchActivity();
+                break;
+            case 'notes':
+                fetchNotes();
+                break;
+            case 'tasks':
+                fetchTasks();
+                break;
+            default:
+                break;
+        }
+    }, [activeTab, leadId]);
+
+    const navigate = useNavigate();
+
+    const handleDeleteLead = async () => {
+        try {
+            setIsSubmitting(true);
+            const token = localStorage.getItem('admin_token');
+            const audienceId = initialAudience?.id || initialAudience?.result_id || initialAudience?.audiance_id || initialAudience?.audience_id;
+            
+            console.log(`📡 Removing business ${leadId} from audience ${audienceId}`);
+            const res = await Api.removeBusinessFromAudience(audienceId, leadId, token);
+            if (res) {
+                toast.success('Lead deleted successfully.');
+                navigate(-1); // Safety redirection
+                return true;
+            } else {
+                toast.error('Failed to delete lead.');
+                return false;
+            }
+        } catch (error) {
+            console.error('Error deleting lead:', error);
+            toast.error('An error occurred while deleting the lead.');
+            return false;
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -220,7 +285,7 @@ const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
             const token = localStorage.getItem('admin_token');
             // Api.addNote signature: (data, token)
             await Api.addNote({
-                lead_id: leadId,
+                business_id: leadId,
                 note_name: noteTitle,
                 comments: noteContent
             }, token);
@@ -266,7 +331,7 @@ const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
             const token = localStorage.getItem('admin_token');
             // Api.addTask signature: (data, token)
             await Api.addTask({
-                lead_id: leadId,
+                business_id: leadId,
                 task_name: taskName,
                 due_date: taskDueDate,
                 status: taskStatus,
@@ -495,6 +560,12 @@ const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
         taskDescription, setTaskDescription,
         isSubmitting,
 
+        // Tab actions
+        fetchNotes,
+        fetchTasks,
+        fetchActivity,
+        fetchMessages,
+
         // Actions
         handleAddNote,
         openDeleteModal,
@@ -504,6 +575,7 @@ const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
         handleTriggerReminders,
         isTriggeringReminders,
         handleAddTask,
+        handleDeleteLead,
 
         // UI Utils
         getHostname,

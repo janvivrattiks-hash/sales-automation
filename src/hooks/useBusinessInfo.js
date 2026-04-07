@@ -32,10 +32,38 @@ export const useBusinessInfo = () => {
         instruction: "Your current AI settings will prioritize response speed while maintaining a professional yet approachable tone."
     });
 
-    const handleUpdateAiPreference = (newData) => {
+    const fetchAiData = async () => {
+        if (!adminToken || !user?.id) return;
+        try {
+            const res = await Api.getAiPreference(adminToken, user.id);
+            if (res && res.data) {
+                const aiData = res.data;
+                let levelVal = 1;
+                const levelStr = (aiData.ai_personalise_level || aiData.personalization_level || '').toLowerCase();
+                
+                if (levelStr === 'medium') levelVal = 2;
+                else if (levelStr === 'high') levelVal = 3;
+                else if (levelStr === 'hyper') levelVal = 4;
+
+                setAiPreference({
+                    tone: aiData.ai_tone_preference || 'Friendly',
+                    toneDescription: aiData.ai_tone_description || 'Warm & Approachable',
+                    personalizationLevel: aiData.ai_personalise_level || aiData.personalization_level || 'Low',
+                    levelValue: levelVal,
+                    instruction: aiData.ai_interaction_instruction || aiData.instruction || "Your current AI settings will prioritize response speed while maintaining a professional yet approachable tone."
+                });
+            }
+        } catch (error) {
+            console.error("Fetch AI Data error:", error);
+        }
+    };
+
+    const handleUpdateAiPreference = async (newData) => {
         let levelVal = 1;
-        if (newData.personalizationLevel?.toLowerCase() === 'medium') levelVal = 2;
-        if (newData.personalizationLevel?.toLowerCase() === 'high') levelVal = 3;
+        const levelStr = newData.personalizationLevel?.toLowerCase() || '';
+        if (levelStr === 'medium') levelVal = 2;
+        else if (levelStr === 'high') levelVal = 3;
+        else if (levelStr === 'hyper') levelVal = 4;
 
         setAiPreference(prev => ({
             ...prev,
@@ -43,6 +71,9 @@ export const useBusinessInfo = () => {
             personalizationLevel: newData.personalizationLevel,
             levelValue: levelVal
         }));
+
+        // Re-fetch to get AI-generated descriptions/instructions if changed
+        await fetchAiData();
     };
 
     const handleLogoChange = async (e) => {
@@ -71,10 +102,14 @@ export const useBusinessInfo = () => {
                 ? await Api.updateProfilePicture(user.id, file)
                 : await Api.uploadProfilePicture(user.id, file);
 
-            if (result && (result.url || result.file_url || result.logo_url)) {
+            // After successful upload, trigger the GET API as requested
+            const freshLogoRes = await Api.getProfilePicture(user.id);
+
+            // Use the direct URL with a cache-buster to show the fresh image
+            if (freshLogoRes) {
                 setBusinessData(prev => ({
                     ...prev,
-                    logoUrl: result.url || result.file_url || result.logo_url
+                    logoUrl: `${Api.getProfilePictureUrl(user.id)}?t=${Date.now()}`
                 }));
             }
         } catch (error) {
@@ -103,36 +138,42 @@ export const useBusinessInfo = () => {
                 ]);
 
                 if (businessRes) {
+                    const data = businessRes.data || businessRes;
                     setBusinessData(prev => ({
                         ...prev,
-                        name: businessRes.business_name || '',
-                        fullName: businessRes.full_name || 'Alexander Thorne',
-                        email: businessRes.email || 'a.thorne@gsdynamics.io',
-                        contact: businessRes.contact_number || '+1 (555) 902-4412',
-                        industry: businessRes.business_industry || '',
-                        website: businessRes.website || '',
-                        description: businessRes.business_description || '',
+                        name: data.business_name || '',
+                        fullName: data.full_name || '',
+                        email: data.email || '',
+                        contact: data.contact_number || '',
+                        industry: data.business_industry || '',
+                        website: data.website || '',
+                        location: data.location || 'N/A', // Using N/A if location is missing
+                        description: data.business_description || '',
                     }));
                 }
 
                 if (logoRes) {
                     setBusinessData(prev => ({
                         ...prev,
-                        logoUrl: logoRes.url || logoRes.file_url || logoRes.logo_url || null
+                        logoUrl: Api.getProfilePictureUrl(user.id) || null
                     }));
                 }
 
-                if (aiRes) {
+                if (aiRes && aiRes.data) {
+                    const aiData = aiRes.data;
                     let levelVal = 1;
-                    if (aiRes.personalization_level?.toLowerCase() === 'medium') levelVal = 2;
-                    if (aiRes.personalization_level?.toLowerCase() === 'high') levelVal = 3;
+                    const levelStr = (aiData.ai_personalise_level || aiData.personalization_level || '').toLowerCase();
+                    
+                    if (levelStr === 'medium') levelVal = 2;
+                    else if (levelStr === 'high') levelVal = 3;
+                    else if (levelStr === 'hyper') levelVal = 4;
 
                     setAiPreference({
-                        tone: aiRes.ai_tone_preference || 'Friendly',
-                        toneDescription: aiRes.ai_tone_description || 'Warm & Approachable',
-                        personalizationLevel: aiRes.personalization_level || 'Low',
+                        tone: aiData.ai_tone_preference || 'Friendly',
+                        toneDescription: aiData.ai_tone_description || 'Warm & Approachable',
+                        personalizationLevel: aiData.ai_personalise_level || aiData.personalization_level || 'Low',
                         levelValue: levelVal,
-                        instruction: aiRes.ai_interaction_instruction || aiRes.instruction || "Your current AI settings will prioritize response speed while maintaining a professional yet approachable tone."
+                        instruction: aiData.ai_interaction_instruction || aiData.instruction || "Your current AI settings will prioritize response speed while maintaining a professional yet approachable tone."
                     });
                 }
             } catch (error) {

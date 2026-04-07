@@ -8,6 +8,7 @@ import { findSocialLink } from '../utils/contactUtils';
 import AudienceHeader from '../components/audienceDetails/AudienceHeader';
 import AudienceStats from '../components/audienceDetails/AudienceStats';
 import AudienceTable from '../components/audienceDetails/AudienceTable';
+import DeleteConfirmModal from '../components/ui/DeleteConfirmModal';
 
 // --- FIELD SCANNER UTILITIES ---
 const PHONE_FIELDS = ['phone', 'MobileNumber', 'phone_number', 'mobile', 'contact_no', 'telephone', 'contact_number', 'mobilenumber', 'cell', 'tel', 'office', 'whatsapp', 'biz_phone', 'business_phone', 'Contact'];
@@ -131,6 +132,11 @@ const AudienceDetails = () => {
     const [loading, setLoading] = useState(true);
     const [enriching, setEnriching] = useState(false);
 
+    // ── Delete Modal State ───────────────────────────────────────────────────
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [leadToDelete, setLeadToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
     const [searchMetadata, setSearchMetadata] = useState({
         query: 'N/A',
         city: 'Any',
@@ -148,22 +154,31 @@ const AudienceDetails = () => {
         if (adminToken && id) {
             fetchAudienceData();
         } else if (!id && location.state?.selectedLeadsData) {
-
             // If we have no ID but we have data in state, use it
             setLeads(location.state.selectedLeadsData.map(l => normalizeLead(l)));
             setLoading(false);
         } else {
             setLoading(false);
         }
+
+        // Add a focus listener to re-fetch if we've been away (e.g., to the delete page)
+        const handleFocus = () => {
+            if (adminToken && id) {
+                console.log("REFRESHING_ON_FOCUS");
+                fetchAudienceData(true); // silent refresh
+            }
+        };
+        window.addEventListener('focus', handleFocus);
+        return () => window.removeEventListener('focus', handleFocus);
     }, [adminToken, audience?.id, audience?.result_id]);
 
-    const fetchAudienceData = async () => {
+    const fetchAudienceData = async (isSilent = false) => {
         const id = audience?.id || audience?.result_id || audience?.audiance_id || audience?.audience_id || location.state?.selectedAudience?.id || location.state?.selectedAudience?.audiance_id;
         if (!id) {
-            setLoading(false);
+            if (!isSilent) setLoading(false);
             return;
         }
-        setLoading(true);
+        if (!isSilent) setLoading(true);
         try {
             console.log("FETCH_AUDIENCE_DETAILS_START: id", id);
 
@@ -241,11 +256,37 @@ const AudienceDetails = () => {
             // 6. Normalize all leads for the UI (ensures ID stability)
             finalLeads = finalLeads.map(lead => normalizeLead(lead));
 
-            console.log(`SET_LEADS: total strictly fetched leads = ${finalLeads.length}`);
+            // --- AGGRESSIVE GHOST FILTER ---
+            // If the lead was deleted on backend, the enrichment data (email, phone, socials) will be gone.
+            // We remove leads that have NO enrichment data left.
+            finalLeads = finalLeads.filter(l => {
+                const phone = l.phone || l.MobileNumber || '';
+                const email = l.email || l.Email || '';
+                const rating = Number(l.rating || l.Rating || 0);
+                const hasWebsite = !!(l.website || l.Website);
+                
+                // Social Link Check
+                const hasSocials = !!(
+                    findSocialLink(l, 'facebook') ||
+                    findSocialLink(l, 'instagram') ||
+                    findSocialLink(l, 'linkedin') ||
+                    findSocialLink(l, 'twitter') ||
+                    findSocialLink(l, 'youtube')
+                );
+
+                const hasNoContact = (!phone || phone === 'N/A') && (!email || email === 'N/A');
+                const isGhost = hasNoContact && !hasSocials && !hasWebsite && rating === 0;
+
+                return !isGhost;
+            });
+
+            console.log(`SET_LEADS: total strictly fetched leads after aggressive ghost filter = ${finalLeads.length}`);
             setLeads(finalLeads);
-            setLoading(false);
+            if (!isSilent) setLoading(false);
 
             // 7. Progressive Background Enrichment for Enriching missing data (Contact info, Rating, Socials)
+            // Disabled to prevent "contact_management" API calls executing automatically when clicking the eye button
+            /*
             const leadsToEnrich = finalLeads.filter(l => 
                 !l.BusinessName || 
                 l.BusinessName.includes('Lead #') || 
@@ -290,6 +331,7 @@ const AudienceDetails = () => {
                 console.log("SUCCESS: Background enrichment cycle complete.");
                 setEnriching(false);
             }
+            */
 
         } catch (error) {
             console.error("FETCH_AUDIENCE_DATA_ERROR:", error);
@@ -362,6 +404,41 @@ const AudienceDetails = () => {
         );
     };
 
+    // ── Delete Functionality ──────────────────────────────────────────────────
+    const handleDeleteClick = (lead) => {
+        setLeadToDelete(lead);
+        setIsDeleteModalOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!leadToDelete) return;
+        
+        const backendId = leadToDelete.id || leadToDelete.result_id;
+        if (!backendId) {
+            console.error("No ID found for deletion");
+            return;
+        }
+
+        setIsDeleting(true);
+        try {
+            const audienceId = audience?.id || audience?.result_id || audience?.audiance_id || audience?.audience_id || location.state?.selectedAudience?.id || location.state?.selectedAudience?.audiance_id;
+            console.log(`📡 Removing lead ${backendId} from audience: ${audienceId}`);
+            
+            // Use the new precise removal API
+            const success = await Api.removeBusinessFromAudience(audienceId, backendId, adminToken);
+            if (success) {
+                // Remove from local list
+                setLeads(prev => prev.filter(l => (l.id || l.result_id) !== backendId));
+                setIsDeleteModalOpen(false);
+                setLeadToDelete(null);
+            }
+        } catch (error) {
+            console.error("Delete Error:", error);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-32">
             <AudienceHeader
@@ -383,6 +460,16 @@ const AudienceDetails = () => {
                 selectedLeads={selectedLeads}
                 toggleLeadSelection={toggleLeadSelection}
                 setSelectedLeads={setSelectedLeads}
+                onDeleteLead={handleDeleteClick}
+            />
+
+            <DeleteConfirmModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={handleConfirmDelete}
+                isDeleting={isDeleting}
+                title="Delete Lead?"
+                description={`Are you sure you want to delete ${leadToDelete?.name || 'this lead'}? This action cannot be undone.`}
             />
         </div>
     );

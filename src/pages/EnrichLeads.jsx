@@ -9,6 +9,7 @@ import Api from '../../scripts/Api';
 import EnrichLeadsHeader from '../components/enrichLeads/EnrichLeadsHeader';
 import FilterModal from '../components/enrichLeads/FilterModal';
 import EnrichLeadsTable from '../components/enrichLeads/EnrichLeadsTable';
+import DeleteConfirmModal from '../components/ui/DeleteConfirmModal';
 
 const EnrichLeads = () => {
     const navigate = useNavigate();
@@ -31,6 +32,12 @@ const EnrichLeads = () => {
     const [isFiltering, setIsFiltering] = useState(false);
     const [filteredLeads, setFilteredLeads] = useState([]);
     const [isFiltered, setIsFiltered] = useState(false);
+    
+    // Deletion State
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [leadToDelete, setLeadToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
     const itemsPerPage = 5;
 
     useEffect(() => {
@@ -139,6 +146,30 @@ const EnrichLeads = () => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const currentLeads = leads.slice(startIndex, startIndex + itemsPerPage);
 
+    // Actions
+    const handleDeleteClick = (id) => {
+        setLeadToDelete(id);
+        setIsDeleteModalOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!leadToDelete) return;
+        setIsDeleting(true);
+        try {
+            const success = await Api.deleteLead(leadToDelete, adminToken);
+            if (success) {
+                // Update local state by filtering out the deleted lead
+                setOriginalLeads(prev => prev.filter(l => (l.id || l.result_id || l.MobileNumber || l.business_information_id) !== leadToDelete));
+                setIsDeleteModalOpen(false);
+                setLeadToDelete(null);
+            }
+        } catch (error) {
+            console.error("Delete failed:", error);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     // Empty state
     if (!leadData) {
         return (
@@ -176,7 +207,6 @@ const EnrichLeads = () => {
                 onApply={handleFilter}
                 isFiltering={isFiltering}
             />
-
             <EnrichLeadsTable
                 currentLeads={currentLeads}
                 leads={leads}
@@ -190,6 +220,16 @@ const EnrichLeads = () => {
                 queryValue={queryValue}
                 cityValue={cityValue}
                 areaValue={areaValue}
+                onDeleteLead={handleDeleteClick}
+            />
+
+            <DeleteConfirmModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={handleConfirmDelete}
+                isLoading={isDeleting}
+                title="Delete Lead"
+                message="Are you sure you want to delete this lead? This action cannot be undone."
             />
 
             {/* Next Step CTA */}

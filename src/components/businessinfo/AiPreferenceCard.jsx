@@ -48,7 +48,7 @@ const AiPreferenceCard = ({ aiPreference, onEdit }) => (
                             <div className="flex items-end justify-between">
                                 <p className="text-xl font-black text-gray-900">{aiPreference.personalizationLevel}</p>
                                 <div className="flex gap-1 mb-1">
-                                    {[1, 2, 3].map((dot) => (
+                                    {[1, 2, 3, 4].map((dot) => (
                                         <div 
                                             key={dot}
                                             className={`w-6 h-1.5 rounded-full transition-all duration-500 ${

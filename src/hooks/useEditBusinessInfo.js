@@ -17,6 +17,7 @@ export const useEditBusinessInfo = () => {
         phonePrefix: '+1',
         website: '',
         industry: 'Software & Technology',
+        location: '',
         description: '',
         logoUrl: ''
     });
@@ -50,10 +51,14 @@ export const useEditBusinessInfo = () => {
                 ? await Api.updateProfilePicture(user.id, file)
                 : await Api.uploadProfilePicture(user.id, file);
 
-            if (result && (result.url || result.file_url || result.logo_url)) {
+            // After successful upload, trigger the GET API as requested
+            const freshLogoRes = await Api.getProfilePicture(user.id);
+
+            // Use the direct URL with a cache-buster to show the fresh image
+            if (freshLogoRes) {
                 setFormData(prev => ({
                     ...prev,
-                    logoUrl: result.url || result.file_url || result.logo_url
+                    logoUrl: `${Api.getProfilePictureUrl(user.id)}?t=${Date.now()}`
                 }));
             }
         } catch (error) {
@@ -103,6 +108,7 @@ export const useEditBusinessInfo = () => {
                 contact_number: `${formData.phonePrefix}${formData.phone}`.replace(/\s+/g, ''),
                 email: formData.email,
                 website: formData.website,
+                location: formData.location,
                 business_industry: formData.industry,
                 business_description: formData.description
             };
@@ -137,23 +143,25 @@ export const useEditBusinessInfo = () => {
                 ]);
 
                 if (infoData) {
+                    const data = infoData.data || infoData;
                     setFormData(prev => ({
                         ...prev,
-                        businessName: infoData.business_name || '',
-                        fullName: infoData.full_name || '',
-                        email: infoData.email || '',
-                        phone: infoData.contact_number || '',
+                        businessName: data.business_name || '',
+                        fullName: data.full_name || '',
+                        email: data.email || '',
+                        phone: data.contact_number || '',
                         phonePrefix: '+1',
-                        website: infoData.website || '',
-                        industry: infoData.business_industry || 'Software & Technology',
-                        description: infoData.business_description || '',
+                        website: data.website || '',
+                        industry: data.business_industry || 'Software & Technology',
+                        location: data.location || '',
+                        description: data.business_description || '',
                     }));
                 }
 
                 if (logoData) {
                     setFormData(prev => ({
                         ...prev,
-                        logoUrl: logoData.url || logoData.file_url || logoData.logo_url || ''
+                        logoUrl: Api.getProfilePictureUrl(user.id) || null
                     }));
                 }
             } catch (error) {

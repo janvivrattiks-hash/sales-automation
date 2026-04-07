@@ -4,7 +4,7 @@ import Card from '../ui/Card';
 import EnrichedRow from './EnrichedRow';
 import RawRow from './RawRow';
 
-const AudienceTable = ({ leads, loading, isEnriched, viewingId, onViewContact }) => {
+const AudienceTable = ({ leads, loading, isEnriched, viewingId, onViewContact, onDeleteLead }) => {
     // Determine if we should show the enriched layout based on the data itself
     const anyLeadEnriched = leads.some(l =>
         (l.rating && l.rating > 0) ||
@@ -75,17 +75,19 @@ const AudienceTable = ({ leads, loading, isEnriched, viewingId, onViewContact })
                                         key={lead.id || lead.result_id || index} 
                                         lead={lead} 
                                         index={index} 
-                                        viewingId={viewingId} 
-                                        onViewContact={onViewContact} 
-                                    />;
-                                }
-                                return <RawRow 
-                                    key={lead.id || lead.result_id || index} 
-                                    lead={lead} 
-                                    index={index} 
                                     viewingId={viewingId} 
                                     onViewContact={onViewContact} 
+                                    onDelete={onDeleteLead}
                                 />;
+                            }
+                            return <RawRow 
+                                key={lead.id || lead.result_id || index} 
+                                lead={lead} 
+                                index={index} 
+                                viewingId={viewingId} 
+                                onViewContact={onViewContact} 
+                                onDelete={onDeleteLead}
+                            />;
                             })
                         )}
                     </tbody>

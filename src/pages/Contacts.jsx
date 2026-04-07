@@ -63,10 +63,16 @@ const Contacts = () => {
         window.scrollTo(0, 0);
         if (adminToken) {
             fetchRawData();
-            fetchEnrichedData();
             fetchAudiences();
         }
-    }, [adminToken, fetchRawData, fetchEnrichedData, fetchAudiences]);
+    }, [adminToken, fetchRawData, fetchAudiences]);
+
+    // Fetch enriched data only when switching to its tab (lazy load)
+    useEffect(() => {
+        if (adminToken && isEnriched && enrichedContacts.length === 0) {
+            fetchEnrichedData();
+        }
+    }, [isEnriched, adminToken, fetchEnrichedData, enrichedContacts.length]);
 
     // Derived State
     const activeContacts = isEnriched ? enrichedContacts : rawContacts;
@@ -193,10 +199,10 @@ const Contacts = () => {
                     <Button 
                         onClick={isEnriched 
                             ? (selectedLeads.length > 0 ? () => setIsSaveAudienceModalOpen(true) : handleOpenFilterModal) 
-                            : handleEnrichLeads
+                            : (selectedLeads.length > 0 ? handleEnrichLeads : handleOpenFilterModal)
                         } 
                         className="flex items-center gap-2 px-6 shadow-lg bg-blue-600 hover:bg-blue-700 font-bold" 
-                        disabled={!isEnriched && selectedLeads.length === 0 && loading}
+                        disabled={loading}
                     >
                         {isEnriched ? <Users size={16} /> : <Zap size={16} className="fill-current" />}
                         {isEnriched ? "Create Audience" : "Enrich Data"}
@@ -290,7 +296,23 @@ const Contacts = () => {
             <Modal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} title="Filter Leads" footer={(
                 <div className="flex items-center justify-between w-full">
                     <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">{selectedLeadsInModal.length} Selected</div>
-                    <Button onClick={() => { setIsFilterModalOpen(false); setIsSaveAudienceModalOpen(true); }} className="bg-blue-600">Next <ArrowRight size={18} /></Button>
+                    <Button 
+                        onClick={() => {
+                            handleFilter(false, isEnriched, (filteredData) => {
+                                setFilterLeadsData(filteredData);
+                                setIsFilterModalOpen(false);
+                                if (isEnriched) {
+                                    setIsSaveAudienceModalOpen(true);
+                                } else {
+                                    navigate('/enrich', { state: { results: filteredData, fromContacts: true } });
+                                }
+                            });
+                        }} 
+                        className="bg-blue-600"
+                        disabled={isFiltering}
+                    >
+                        {isFiltering ? <Loader2 className="animate-spin" size={18} /> : <span className="flex items-center gap-1">Next <ArrowRight size={18} /></span>}
+                    </Button>
                 </div>
             )}>
                 <FilterForm filters={filters} setFilters={setFilters} />
@@ -309,7 +331,9 @@ const Contacts = () => {
                             <div>
                                 <p className="text-sm font-bold text-gray-900">Leads to Save</p>
                                 <p className="text-[10px] font-bold text-primary uppercase tracking-widest">
-                                    {Array.from(new Set([...selectedLeads, ...selectedLeadsInModal])).length || activeContacts.length} Contacts Ready
+                                    {Array.from(new Set([...selectedLeads, ...selectedLeadsInModal])).length > 0 
+                                        ? Array.from(new Set([...selectedLeads, ...selectedLeadsInModal])).length 
+                                        : filterLeadsData.length} Contacts Ready
                                 </p>
                             </div>
                         </div>

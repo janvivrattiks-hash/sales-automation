@@ -22,7 +22,7 @@ const getSocialColor = (link) => {
     return 'text-gray-400';
 };
 
-const EnrichedLeadRow = ({ lead, index, leads, queryInfo, navigate }) => {
+const EnrichedLeadRow = ({ lead, index, leads, queryInfo, navigate, onDelete }) => {
     const phoneStr = extractStr(deepGet(lead, ['mobile', 'MobileNumber', 'phone', 'contact_number', 'phone_number', 'Phone', 'Mobile']));
     const emailRaw = deepGet(lead, ['email', 'Email', 'email_address', 'email_addresses', 'emails']);
     let emailsList = [];
@@ -32,7 +32,13 @@ const EnrichedLeadRow = ({ lead, index, leads, queryInfo, navigate }) => {
     const primaryEmail = emailsList.length > 0 ? emailsList[0] : 'N/A';
 
     const websiteRaw = deepGet(lead, ['website', 'Website', 'website_url', 'url', 'domain', 'web', 'site_url']);
-    const websiteStr = extractStr(websiteRaw, null);
+    let websiteStr = extractStr(websiteRaw, null);
+
+    // Filter out junk values (e.g., "no", "false", "none", "null")
+    const junkWebsites = ['no', 'false', 'none', 'null', 'undefined', 'n/a', 'na'];
+    if (websiteStr && (junkWebsites.includes(websiteStr.toLowerCase().trim()) || websiteStr.length < 4)) {
+        websiteStr = null;
+    }
 
     const ratingRaw = deepGet(lead, ['rating', 'Rating', 'ratting', 'google_rating', 'star_rating', 'review_rating', 'avg_rating', 'score']);
     const ratingVal = extractStr(ratingRaw, '0');
@@ -96,7 +102,7 @@ const EnrichedLeadRow = ({ lead, index, leads, queryInfo, navigate }) => {
                         <span className="truncate max-w-[140px]">{getHostname(websiteStr.startsWith('http') ? websiteStr : `https://${websiteStr}`)}</span>
                     </a>
                 ) : (
-                    <span className="text-xs font-bold text-gray-300 italic">N/A</span>
+                    <span className="text-xs font-bold text-gray-400 italic">Not Available</span>
                 )}
             </td>
 
@@ -121,7 +127,13 @@ const EnrichedLeadRow = ({ lead, index, leads, queryInfo, navigate }) => {
                     >
                         <Eye size={18} />
                     </button>
-                    <button className="p-2 hover:text-red-500 transition-colors hover:bg-red-50 rounded-lg active:scale-90">
+                    <button 
+                        className="p-2 hover:text-red-500 transition-colors hover:bg-red-50 rounded-lg active:scale-90"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete(lead);
+                        }}
+                    >
                         <Trash2 size={18} />
                     </button>
                 </div>

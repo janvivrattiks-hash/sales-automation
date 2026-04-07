@@ -17,6 +17,7 @@ const EnrichedLeadsTable = ({
     navigate,
     queryInfo,
     leads,
+    onDeleteLead
 }) => {
     return (
         <Card noPadding className="border-none shadow-sm rounded-2xl bg-white">
@@ -68,6 +69,7 @@ const EnrichedLeadsTable = ({
                                     leads={leads}
                                     queryInfo={queryInfo}
                                     navigate={navigate}
+                                    onDelete={onDeleteLead}
                                 />
                             ))
                         ) : (

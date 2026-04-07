@@ -28,6 +28,7 @@ export const useContacts = (navigate) => {
     const [filters, setFilters] = useState({
         website: 'Any',
         ratings: 0,
+        category: '',
         parameter: ''
     });
     const [audienceData, setAudienceData] = useState({
@@ -96,19 +97,18 @@ export const useContacts = (navigate) => {
         if (!adminToken) return;
         setRawLoading(true);
         try {
-            const recentActivities = await Api.getRecent(adminToken);
-            const allRawLeads = recentActivities?.flatMap(activity => {
-                return (activity.results || []).map(lead => ({
-                    ...lead,
-                    job_status: activity.search_details?.status || 'New',
-                    source_job: activity.job_id
-                }));
-            }) || [];
-            console.log("Raw Contacts Data (Recent Activity):", allRawLeads);
+            const data = await Api.getNonEnriched(adminToken);
+            // API can return an array or an object with a data/results property
+            const leadsArray = Array.isArray(data)
+                ? data
+                : (data?.data || data?.results || data?.leads || []);
 
+            console.log("Raw Contacts Data (Non-Enriched):", leadsArray);
+
+            // Deduplicate by ID
             const uniqueRaw = [];
             const seenIds = new Set();
-            allRawLeads.forEach((lead, idx) => {
+            leadsArray.forEach((lead, idx) => {
                 if (!lead) return;
                 const leadId = lead.id || lead.result_id || lead.MobileNumber || lead.phone || `${lead.name || 'raw'}-${lead.address || idx}`;
                 if (!seenIds.has(leadId)) {
@@ -179,9 +179,15 @@ export const useContacts = (navigate) => {
             const allAvailableContacts = [...enrichedContacts, ...rawContacts];
             const passedLeads = currentSelected.length > 0
                 ? allAvailableContacts.filter(l => currentSelected.includes(l.id || l.result_id))
-                : (filterLeadsData.length > 0 ? filterLeadsData : activeContacts);
+                : filterLeadsData;
             
             const ids = passedLeads.map(l => l.id || l.result_id).filter(Boolean);
+
+            if (ids.length === 0) {
+                toast.error("No contacts available to save matching your filter criteria.");
+                setIsSavingAudience(false);
+                return;
+            }
 
             const typeTag = isEnriched ? 'Enriched' : 'Raw';
             const finalTags = [typeTag, ...uiTags.filter(t => t !== 'Enriched' && t !== 'Raw')];

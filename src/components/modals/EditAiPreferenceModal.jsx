@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, X, Layout, Sliders, MessageSquare } from 'lucide-react';
+import { Sparkles, X, Layout, Sliders, MessageSquare, ChevronDown } from 'lucide-react';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import { toast } from 'react-toastify';
@@ -20,6 +20,31 @@ const PreferenceInput = ({ label, value, onChange, placeholder, icon: Icon, subt
                 placeholder={placeholder}
                 className="w-full pl-12 pr-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-gray-900 focus:bg-white focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all outline-none"
             />
+        </div>
+        {subtext && <p className="text-[10px] font-medium text-gray-400 ml-1 leading-relaxed">{subtext}</p>}
+    </div>
+);
+
+const PreferenceSelect = ({ label, value, onChange, options, icon: Icon, subtext }) => (
+    <div className="space-y-2">
+        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">{label}</label>
+        <div className="relative group">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-primary transition-colors pointer-events-none">
+                {Icon && <Icon size={18} />}
+            </div>
+            <select
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className="w-full pl-12 pr-10 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-gray-900 focus:bg-white focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all outline-none appearance-none cursor-pointer"
+            >
+                <option value="" disabled>Select {label}</option>
+                {options.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                ))}
+            </select>
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-focus-within:text-primary transition-colors">
+                <ChevronDown size={18} />
+            </div>
         </div>
         {subtext && <p className="text-[10px] font-medium text-gray-400 ml-1 leading-relaxed">{subtext}</p>}
     </div>
@@ -57,16 +82,15 @@ const EditAiPreferenceModal = ({ isOpen, onClose, currentData, onUpdate }) => {
         setIsSubmitting(true);
         try {
             const result = await Api.updateAiPreference(adminToken, user.id, tone, personalization);
-            
-            if (result) {
+
+            if (result && result.data) {
                 if (onUpdate) {
                     onUpdate({
-                        tone: result.ai_tone_preference,
-                        personalizationLevel: result.ai_personalise_level,
-                        // Update descriptions or other fields if the backend provides them
+                        tone: result.data.ai_tone_preference,
+                        personalizationLevel: result.data.ai_personalise_level,
                     });
                 }
-                
+
                 toast.success("AI Preferences updated successfully!");
                 onClose();
             }
@@ -113,21 +137,21 @@ const EditAiPreferenceModal = ({ isOpen, onClose, currentData, onUpdate }) => {
                     </div>
                 </div>
 
-                <PreferenceInput
+                <PreferenceSelect
                     label="AI Tone Preference"
                     value={tone}
                     onChange={setTone}
                     icon={MessageSquare}
-                    placeholder="e.g., Friendly, Professional, Direct"
+                    options={['Friendly', 'Professional', 'Assertive', 'Empathetic']}
                     subtext="Set the emotional resonance and communication style."
                 />
 
-                <PreferenceInput
+                <PreferenceSelect
                     label="AI Personalization Level"
                     value={personalization}
                     onChange={setPersonalization}
                     icon={Sliders}
-                    placeholder="e.g., Low, Medium, High"
+                    options={['Low', 'Medium', 'High', 'Hyper']}
                     subtext="Determine how deep the AI researches individual lead data."
                 />
             </div>

@@ -122,10 +122,20 @@ const SingleAudienceSidebar = ({
 
                     {/* 9. Google Rating */}
                     <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Google Rating</p>
-                        <div className="flex items-center gap-2">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Google Rating</p>
+                        <div className="flex flex-col gap-1.5">
                             <StarRating rating={parseFloat(ratingVal) || 0} size="sm" />
-                            <span className="text-sm font-bold text-gray-900">{ratingVal}</span>
+                            {(() => {
+                                const reviewMatch = String(ratingVal).match(/\((.*?)\)/) || String(ratingVal).match(/(\d+(?:,\d+)*)\s*reviews?/i);
+                                if (reviewMatch) {
+                                    return (
+                                        <span className="text-[11px] font-medium text-gray-500 leading-tight">
+                                            {reviewMatch[0]?.startsWith('(') ? reviewMatch[0] : `(${reviewMatch[0]})`}
+                                        </span>
+                                    );
+                                }
+                                return null;
+                            })()}
                         </div>
                     </div>
 

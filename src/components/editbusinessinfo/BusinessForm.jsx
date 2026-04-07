@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, User, AtSign, ChevronDown, Globe, Briefcase } from 'lucide-react';
+import { Building2, User, AtSign, ChevronDown, Globe, Briefcase, MapPin } from 'lucide-react';
 import FormField from './FormField';
 import Button from '../ui/Button';
 
@@ -89,6 +89,17 @@ const BusinessForm = ({ formData, isSubmitting, onChange, onCancel, onSubmit }) 
                     </select>
                     <ChevronDown size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors pointer-events-none" />
                 </div>
+            </FormField>
+
+            {/* Location */}
+            <FormField label="Location" icon={MapPin}>
+                <input
+                    name="location"
+                    value={formData.location}
+                    onChange={onChange}
+                    placeholder="City, Country"
+                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-gray-900 group-focus-within:bg-white group-focus-within:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all outline-none"
+                />
             </FormField>
         </div>
 

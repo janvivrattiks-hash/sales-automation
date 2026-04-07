@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ChevronRight, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../ui/Card';
+import DeleteConfirmModal from '../ui/DeleteConfirmModal';
 
 const SingleAudienceHeader = ({ 
     contactName, 
@@ -11,9 +12,21 @@ const SingleAudienceHeader = ({
     icpScore, 
     leadStage, 
     leadTitle,
-    fromTab
+    fromTab,
+    onDelete
 }) => {
     const navigate = useNavigate();
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const handleConfirmDelete = async () => {
+        setIsDeleting(true);
+        const success = await onDelete();
+        setIsDeleting(false);
+        if (success) {
+            setShowDeleteModal(false);
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -48,7 +61,11 @@ const SingleAudienceHeader = ({
                         </div>
 
                         {/* Top Right Action */}
-                        <button className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                        <button 
+                            onClick={() => setShowDeleteModal(true)}
+                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                            title="Delete Lead Data"
+                        >
                             <Trash2 size={20} />
                         </button>
                     </div>
@@ -78,8 +95,19 @@ const SingleAudienceHeader = ({
                     </div>
                 </div>
             </Card>
+
+            {/* Delete Confirmation Modal */}
+            <DeleteConfirmModal
+                isOpen={showDeleteModal}
+                onClose={() => setShowDeleteModal(false)}
+                onConfirm={handleConfirmDelete}
+                isDeleting={isDeleting}
+                title="Delete Lead?"
+                description={`Are you sure you want to delete the profile for "${businessName}"? This action cannot be undone.`}
+            />
         </div>
     );
 };
 
 export default SingleAudienceHeader;
+

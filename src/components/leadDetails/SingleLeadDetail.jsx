@@ -43,7 +43,13 @@ const SingleLeadDetail = ({ lead, onBack }) => {
     const rating = leadData?.rating || leadData?.Rating || leadData?.ratting || 0;
     const reviews = leadData?.reviews || leadData?.Reviews || 0;
     const ownerName = leadData?.owner_name || leadData?.Owner || leadData?.owner || 'N/A';
-    const website = leadData?.website || leadData?.Website || leadData?.website_url || null;
+    
+    // Website Extraction with junk value filtering
+    const rawWebsite = leadData?.website || leadData?.Website || leadData?.website_url;
+    const junkWebsites = ['no', 'false', 'none', 'null', 'undefined', 'n/a', 'na'];
+    const website = (rawWebsite && typeof rawWebsite === 'string' && !junkWebsites.includes(rawWebsite.toLowerCase().trim()) && rawWebsite.length >= 4) 
+        ? rawWebsite 
+        : null;
 
     console.log("📊 [SingleLeadDetail] Extracted data:", {
         businessName, category, address, phone, email, rating, reviews, ownerName, website
@@ -59,7 +65,7 @@ const SingleLeadDetail = ({ lead, onBack }) => {
 
     const websiteDisplay = website
         ? website.replace(/^https?:\/\//, '').replace(/\/$/, '')
-        : null;
+        : 'Not Available';
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-16">

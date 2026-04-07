@@ -66,6 +66,7 @@ const SingleAudienceView = () => {
         handleTriggerReminders,
         isTriggeringReminders,
         handleAddTask,
+        handleDeleteLead,
         getHostname,
         derivedData
     } = useSingleAudience(leadId, leadData, audienceData);
@@ -89,6 +90,24 @@ const SingleAudienceView = () => {
         { id: 'tasks', label: 'Tasks & Actions' },
     ];
 
+    // Global pre-loader to hide empty/shimmer UI while POST/GET sequences are executing
+    const isCoreDataLoading = isLoadingContactInfo || isLoadingSummary;
+
+    if (isCoreDataLoading) {
+        return (
+            <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center space-y-5">
+                <div className="relative">
+                    <div className="h-16 w-16 rounded-full border-t-4 border-b-4 border-primary animate-spin opacity-80"></div>
+                    <div className="h-16 w-16 rounded-full border-r-4 border-l-4 border-blue-200 animate-spin absolute inset-0 animation-delay-150"></div>
+                </div>
+                <div className="text-center space-y-1">
+                    <p className="text-sm font-bold text-gray-700 tracking-wider">Acquiring Prospect Intelligence</p>
+                    <p className="text-[10px] font-extrabold uppercase text-gray-400 tracking-widest animate-pulse">Running Background Process...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-[#F8FAFC]">
             <div className="max-w-[1600px] mx-auto p-4 md:p-8 space-y-8">
@@ -102,6 +121,7 @@ const SingleAudienceView = () => {
                     leadStage={derivedData.leadStage}
                     leadTitle={derivedData.leadTitle}
                     fromTab={fromTab}
+                    onDelete={handleDeleteLead}
                 />
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

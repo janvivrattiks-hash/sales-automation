@@ -1,13 +1,19 @@
 import React from 'react';
-import { Phone, Mail, Globe, Eye, Loader2 } from 'lucide-react';
+import { Phone, Mail, Globe, Eye, Loader2, Trash2 } from 'lucide-react';
 import StarRating from '../ui/StarRating';
 import { scanSocials, getSocialIcon, getHostname } from '../../utils/contactUtils';
 
-const EnrichedRow = ({ lead, index, viewingId, onViewContact }) => {
+const EnrichedRow = ({ lead, index, viewingId, onViewContact, onDelete }) => {
     const id = lead.id || lead.result_id || index;
     const businessName = lead.name || lead.BusinessName || lead.business_name || lead.Business_Name || lead.title || 'N/A';
     const extractedSocials = scanSocials(lead);
-    const websiteStr = lead.website || lead.Website || '';
+    
+    // Website Extraction with junk value filtering
+    const rawWebsite = lead.website || lead.Website || '';
+    const junkWebsites = ['no', 'false', 'none', 'null', 'undefined', 'n/a', 'na'];
+    const websiteStr = (rawWebsite && typeof rawWebsite === 'string' && !junkWebsites.includes(rawWebsite.toLowerCase().trim()) && rawWebsite.length >= 4) 
+        ? rawWebsite 
+        : null;
 
     return (
         <tr key={id} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors cursor-pointer">
@@ -59,7 +65,7 @@ const EnrichedRow = ({ lead, index, viewingId, onViewContact }) => {
                         </span>
                     </a>
                 ) : (
-                    <span className="text-xs font-bold text-gray-300">N/A</span>
+                    <span className="text-xs font-bold text-gray-400 italic">Not Available</span>
                 )}
             </td>
             <td className="px-6 py-4 text-center">
@@ -71,9 +77,18 @@ const EnrichedRow = ({ lead, index, viewingId, onViewContact }) => {
                 </span>
             </td>
             <td className="px-6 py-4 text-right">
-                <button onClick={(e) => { e.stopPropagation(); onViewContact(lead); }} className="p-2 hover:text-primary transition-colors hover:bg-primary/5 rounded-lg active:scale-95 disabled:opacity-50" disabled={viewingId === id}>
-                    {viewingId === id ? <Loader2 size={18} className="animate-spin" /> : <Eye size={18} />}
-                </button>
+                <div className="flex items-center justify-end gap-2 text-gray-300">
+                    <button onClick={(e) => { e.stopPropagation(); onViewContact(lead); }} className="p-2 hover:text-primary transition-colors hover:bg-primary/5 rounded-lg active:scale-95 disabled:opacity-50" disabled={viewingId === id} title="View Details">
+                        {viewingId === id ? <Loader2 size={18} className="animate-spin" /> : <Eye size={18} />}
+                    </button>
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onDelete(lead); }} 
+                        className="p-2 hover:text-red-500 transition-colors hover:bg-red-50 rounded-lg active:scale-95"
+                        title="Delete Lead"
+                    >
+                        <Trash2 size={18} />
+                    </button>
+                </div>
             </td>
         </tr>
     );

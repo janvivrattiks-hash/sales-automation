@@ -47,7 +47,16 @@ const LeadDetailsTable = ({ leads, processingLeadId, onViewLead, onDeleteLead })
                                     <span className="text-sm text-gray-600">{lead.email || 'N/A'}</span>
                                 </td>
                                 <td className="px-8 py-6">
-                                    <span className="text-sm text-gray-600">{lead.website || 'N/A'}</span>
+                                    <span className="text-sm text-gray-600">
+                                        {(() => {
+                                            const ws = lead.website;
+                                            const junk = ['no', 'false', 'none', 'null', 'undefined', 'n/a', 'na'];
+                                            if (!ws || (typeof ws === 'string' && (junk.includes(ws.toLowerCase().trim()) || ws.length < 4))) {
+                                                return <span className="text-gray-400 italic font-bold">Not Available</span>;
+                                            }
+                                            return ws;
+                                        })()}
+                                    </span>
                                 </td>
                                 <td className="px-8 py-6">
                                     <StarRating rating={lead.rating || 0} size="sm" />

@@ -39,7 +39,14 @@ const ReviewLeadsRow = memo(({
                 {lead.mobile || lead.MobileNumber || lead.phone || lead.mobile_number || 'N/A'}
             </td>
             <td className="px-8 py-6 text-sm font-medium text-gray-500">
-                {lead.website || lead.Website || lead.business_website || 'N/A'}
+                {(() => {
+                    const ws = lead.website || lead.Website || lead.business_website;
+                    const junk = ['no', 'false', 'none', 'null', 'undefined', 'n/a', 'na'];
+                    if (!ws || (typeof ws === 'string' && (junk.includes(ws.toLowerCase().trim()) || ws.length < 4))) {
+                        return <span className="text-gray-400 italic font-bold">Not Available</span>;
+                    }
+                    return ws;
+                })()}
             </td>
             <td className="px-8 py-6 text-sm font-medium text-gray-500">
                 {lead.email || lead.Email || lead.business_email || 'N/A'}
