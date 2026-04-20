@@ -101,54 +101,6 @@ const SummaryTab = ({ summaryData, isLoadingSummary, poiDetails, isLoadingPoi, i
                 </div>
             </div>
 
-            {/* 3. ICP Match Analysis */}
-            {(() => {
-                const fit = getDeepField(summaryData, ['fit_level', 'fit', 'match_level', 'alignment', 'icp_fit_level']) || getDeepField(contactInfo, ['fit_level', 'fit']) || 'N/A';
-                const conf = getDeepField(summaryData, ['confidence_level', 'confidence', 'confidence_score', 'certainty', 'conf_score']) || getDeepField(contactInfo, ['confidence_level', 'confidence']) || 'N/A';
-                const summ = getDeepField(summaryData, ['icp_summary', 'icp_analysis', 'match_summary', 'analysis_summary', 'fit_description', 'reasoning']);
-
-                return (
-                    <div className="animate-in slide-in-from-bottom-4 duration-500 delay-200 p-6 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all">
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="p-2 bg-green-50 text-green-500 rounded-xl">
-                                <CheckCircle2 size={20} />
-                            </div>
-                            <h4 className="font-bold text-gray-900 text-base">ICP Match Analysis</h4>
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-4 mb-5">
-                            {[
-                                { label: 'ICP Score', value: String(icpScore).trim() },
-                                { label: 'Fit Level', value: typeof fit === 'object' ? JSON.stringify(fit) : String(fit).trim() },
-                                { label: 'Confidence', value: typeof conf === 'object' ? JSON.stringify(conf) : String(conf).trim() },
-                            ].map(({ label, value }) => {
-                                const v = value.toLowerCase();
-                                const color = v.includes('high') || v.includes('strong') || v.includes('excellent') ? 'text-green-600'
-                                    : v.includes('low') || v.includes('weak') || v.includes('poor') ? 'text-red-500'
-                                        : v.includes('medium') || v.includes('mid') || v.includes('moderate') ? 'text-amber-500'
-                                            : value === 'N/A' ? 'text-gray-400'
-                                                : 'text-gray-900';
-                                return (
-                                    <div key={label} className="flex flex-col">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{label}</p>
-                                        <p className={`text-sm font-black capitalize ${color}`}>{value}</p>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        {summ && (
-                            <div className="bg-green-50/30 p-5 rounded-2xl border border-green-100/50">
-                                <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest mb-2 opacity-70">ICP Summary</p>
-                                <div className="text-green-900 text-sm leading-relaxed italic">
-                                    {typeof summ === 'string' ? `"${summ}"` : renderData(summ)}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                );
-            })()}
-
             {/* 4. Pain Points */}
             {(() => {
                 const points = getDeepField(summaryData, ['pain_points', 'pain_points_detail', 'challenges', 'problems', 'pain_points_list', 'pain_areas', 'weaknesses']);

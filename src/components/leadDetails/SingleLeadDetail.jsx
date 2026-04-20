@@ -34,19 +34,61 @@ const SingleLeadDetail = ({ lead, onBack }) => {
     
     console.log("📋 [SingleLeadDetail] Unwrapped lead data:", leadData);
 
-    // Extract data with fallbacks for various field name formats
-    const businessName = leadData?.name || leadData?.BusinessName || leadData?.business_name || 'N/A';
-    const category = leadData?.category || leadData?.Category || leadData?.business_category || leadData?.Industry || 'N/A';
-    const address = leadData?.address || leadData?.Address || leadData?.full_address || 'N/A';
-    const phone = leadData?.phone || leadData?.Phone || leadData?.MobileNumber || leadData?.mobile_number || 'N/A';
-    const email = leadData?.email || leadData?.Email || leadData?.business_email || 'N/A';
-    const rating = leadData?.rating || leadData?.Rating || leadData?.ratting || 0;
-    const reviews = leadData?.reviews || leadData?.Reviews || 0;
-    const ownerName = leadData?.owner_name || leadData?.Owner || leadData?.owner || 'N/A';
+    // Helper to get first valid (non-empty, non-'N/A') string from a list of properties
+    const getValidStr = (lead, keys, defaultVal = 'N/A') => {
+        for (const key of keys) {
+            const val = lead[key];
+            if (val && typeof val === 'string' && val.trim() !== '' && val.toLowerCase() !== 'n/a') {
+                return val;
+            }
+            if (val !== undefined && val !== null && typeof val !== 'string') {
+                return String(val); // in case rating/reviews are numbers
+            }
+        }
+        return defaultVal;
+    };
+
+    // Extract data with fallbacks for various field name formats, ignoring N/A
+    const businessName = getValidStr(leadData, ['business_name', 'name', 'BusinessName']);
+    const category = getValidStr(leadData, ['business_category', 'category', 'Category', 'Industry']);
+    const address = getValidStr(leadData, ['address', 'Address', 'full_address']);
+    const rawOwner = getValidStr(leadData, ['lead_owner', 'main_owner', 'primary_contact_name', 'owner_name', 'Owner', 'owner']);
+    const ownerName = rawOwner !== 'N/A' ? rawOwner.split(/[,;|]/)[0].trim() : 'N/A';
+    const email = getValidStr(leadData, ['email', 'Email', 'business_email']);
+    const rating = getValidStr(leadData, ['rating', 'Rating', 'ratting'], 0);
+    const reviews = getValidStr(leadData, ['reviews', 'Reviews'], 0);
+
+    // Collective Phone Extraction with Last-10-Digit Deduplication
+    const getPhones = (data) => {
+        const uniqueList = [];
+        const seenLast10 = new Set();
+
+        const addIfUnique = (p) => {
+            if (!p || typeof p !== 'string') return;
+            const digits = p.replace(/\D/g, '');
+            if (digits.length < 7) return; 
+            const last10 = digits.slice(-10);
+            if (!seenLast10.has(last10)) {
+                seenLast10.add(last10);
+                uniqueList.push(p.trim());
+            }
+        };
+
+        const keys = ['phones', 'contact_number', 'phone', 'Phone', 'MobileNumber', 'mobile_number', 'whatsapp'];
+        keys.forEach(k => {
+            const val = data[k];
+            if (Array.isArray(val)) val.forEach(v => addIfUnique(v));
+            else if (val) addIfUnique(val);
+        });
+        return uniqueList;
+    };
+    const allPhones = getPhones(leadData);
+    const phone = allPhones.length > 0 ? allPhones.join(', ') : 'N/A';
     
+    // Filter out junk values (e.g., "no", "false", "yes", "none", "null")
+    const junkWebsites = ['no', 'n', 'false', 'none', 'null', 'undefined', 'n/a', 'na', 'yes', 'y'];
     // Website Extraction with junk value filtering
-    const rawWebsite = leadData?.website || leadData?.Website || leadData?.website_url;
-    const junkWebsites = ['no', 'false', 'none', 'null', 'undefined', 'n/a', 'na'];
+    const rawWebsite = getValidStr(leadData, ['website', 'Website', 'website_url'], null);
     const website = (rawWebsite && typeof rawWebsite === 'string' && !junkWebsites.includes(rawWebsite.toLowerCase().trim()) && rawWebsite.length >= 4) 
         ? rawWebsite 
         : null;
@@ -118,7 +160,25 @@ const SingleLeadDetail = ({ lead, onBack }) => {
                     <InfoRow icon={Tag} label="Business Name" value={businessName} />
                     <InfoRow icon={Tag} label="Category" value={category} />
                     <InfoRow icon={MapPin} label="Address" value={address} />
-                    <InfoRow icon={Phone} label="Phone" value={phone} />
+                    <div className="flex items-start gap-4 py-4 border-b border-gray-100 last:border-0">
+                        <div className="mt-0.5 p-2 bg-primary/5 rounded-lg text-primary shrink-0">
+                            <Phone size={16} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Phone</p>
+                            {allPhones.length > 0 ? (
+                                <div className="flex flex-col gap-1">
+                                    {allPhones.map((p, idx) => (
+                                        <a key={idx} href={`tel:${p}`} className="text-sm font-medium text-primary hover:underline block truncate">
+                                            {p}
+                                        </a>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm font-medium text-gray-900">—</p>
+                            )}
+                        </div>
+                    </div>
                     <InfoRow
                         icon={Globe}
                         label="Website"

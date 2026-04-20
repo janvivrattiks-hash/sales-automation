@@ -55,9 +55,25 @@ const SingleAudienceSidebar = ({
                     {/* 5. Phone */}
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Phone</p>
-                        <div className="flex items-center gap-1.5 mt-1">
-                            <Phone size={14} className="text-gray-400 shrink-0" />
-                            {isLoadingContactInfo ? <div className={`${shimmer} w-1/2`} /> : <p className="text-sm font-bold text-primary">{phoneStr}</p>}
+                        <div className="flex items-start gap-1.5 mt-1">
+                            <Phone size={14} className="text-gray-400 mt-0.5 shrink-0" />
+                            {isLoadingContactInfo ? (
+                                <div className={`${shimmer} w-1/2`} />
+                            ) : phoneStr && phoneStr !== 'N/A' ? (
+                                <div className="flex flex-col gap-1">
+                                    {phoneStr.split(',').map((phone, index) => (
+                                        <a
+                                            key={index}
+                                            href={`tel:${phone.trim()}`}
+                                            className="text-sm font-bold text-primary hover:underline leading-tight"
+                                        >
+                                            {phone.trim()}
+                                        </a>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm font-bold text-gray-800">N/A</p>
+                            )}
                         </div>
                     </div>
 

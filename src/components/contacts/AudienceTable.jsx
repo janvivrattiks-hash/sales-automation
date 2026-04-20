@@ -114,8 +114,13 @@ const AudienceTable = ({
                                                 <p className="text-[10px] text-gray-400 font-medium truncate max-w-[200px]">{audience.discription || 'No description'}</p>
                                             </td>
                                             <td className="px-6 py-5">
-                                                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-lg w-fit">
-                                                    {audience.tag || 'No tags'}
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-lg w-fit">
+                                                        {audience.businesses?.length || audience.leads?.length || audience.count || audience.business_ids?.length || 0} Leads
+                                                    </div>
+                                                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter pl-1">
+                                                        {audience.tag || 'No tags'}
+                                                    </p>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-5 text-sm font-medium text-gray-500">

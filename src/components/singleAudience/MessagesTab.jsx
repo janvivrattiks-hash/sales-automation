@@ -1,7 +1,9 @@
-import React from 'react';
-import { Mail } from 'lucide-react';
+import React, { useState } from 'react';
+import { Mail, X, Send, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Button from '../ui/Button';
 import Api from '../../../scripts/Api';
+import { toast } from 'react-toastify';
+import RichTextEditor from '../ui/RichTextEditor';
 
 const MessagesTab = ({
     messagesData,
@@ -9,8 +11,18 @@ const MessagesTab = ({
     contactName,
     businessName,
     emailsArray,
-    phoneStr
+    phoneStr,
+    businessId,
+    adminEmail
 }) => {
+    const [showEmailModal, setShowEmailModal] = useState(false);
+    const [manualEmail, setManualEmail] = useState('');
+    const [isSending, setIsSending] = useState(false);
+    const [isConnecting, setIsConnecting] = useState(false);
+    const [emailError, setEmailError] = useState('');
+    const [editorContent, setEditorContent] = useState('');
+    const [subject, setSubject] = useState('');
+
     if (isLoadingMessages) {
         return (
             <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-100 shadow-sm animate-in fade-in">
@@ -101,6 +113,112 @@ const MessagesTab = ({
     const { emailSubject, emailBody, whatsappBody } = discoverContent(messagesData);
     const firstName = contactName ? contactName.split(' ')[0] : 'there';
 
+    const finalRecipientEmail = manualEmail;
+    const hasExistingEmail = emailsArray.length > 0 && emailsArray[0] !== 'N/A';
+
+    const handleSendEmail = async () => {
+        if (!finalRecipientEmail) {
+            setEmailError('Please provide a valid email address.');
+            return;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(finalRecipientEmail)) {
+            setEmailError('Please enter a valid email format.');
+            return;
+        }
+
+        try {
+            setIsSending(true);
+            setEmailError('');
+            const token = localStorage.getItem('admin_token');
+            
+            const payload = {
+                lead_id: businessId, // Matches backend 'lead_id'
+                recipient_email: finalRecipientEmail,
+                subject: subject || emailSubject || `Scaling your operations at ${businessName}`,
+                content_html: editorContent || emailBody // Backend expects content_html
+            };
+
+            const response = await Api.sendGmailOutreach(payload, token);
+            if (response) {
+                setShowEmailModal(false);
+                setManualEmail('');
+            }
+        } catch (error) {
+            console.error('Failed to send email:', error);
+            if (error.response?.status === 403) {
+                toast.error("Please connect your Google account first!");
+                // Optionally trigger connect logic
+            }
+        } finally {
+            setIsSending(false);
+        }
+    };
+
+    const handleInitialSendAction = async () => {
+        try {
+            setIsConnecting(true);
+            const token = localStorage.getItem('admin_token');
+            
+            // We'll "test" the connection by trying to fetch history or syncing. 
+            // Most reliable way: call the connection URL check or a simple history fetch.
+            // If the user is NOT connected, the backend will return 403.
+            try {
+                await Api.getGmailLeadHistory(businessId, token);
+                
+                // If we reach here, user is connected. Open the modal.
+                const initialEmail = (emailsArray.length > 0 && emailsArray[0] !== 'N/A') ? emailsArray[0] : '';
+                setManualEmail(initialEmail);
+                setSubject(emailSubject || `Scaling your operations at ${businessName}`);
+                setEditorContent(emailBody || `Hi ${firstName},<br/><br/>I loved your work at ${businessName}...`);
+                setShowEmailModal(true);
+            } catch (err) {
+                if (err.response?.status === 403) {
+                    // Not connected, redirect to auth in a popup
+                    const response = await Api.getGoogleConnectUrl(token);
+                    if (response && response.authorization_url) {
+                        const width = 600;
+                        const height = 700;
+                        const left = (window.screen.width / 2) - (width / 2);
+                        const top = (window.screen.height / 2) - (height / 2);
+                        
+                        const popup = window.open(
+                            response.authorization_url,
+                            'GoogleConnect',
+                            `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,status=no,toolbar=no,menubar=no`
+                        );
+
+                        if (popup) {
+                            toast.info("Please complete the sign-in in the popup window.");
+                            // Periodic check to see if popup is closed
+                            const timer = setInterval(() => {
+                                if (popup.closed) {
+                                    clearInterval(timer);
+                                    toast.success("Connection check: You can now try sending again!");
+                                }
+                            }, 1000);
+                        } else {
+                            // Blocked by popup blocker
+                            window.location.href = response.authorization_url;
+                        }
+                    } else {
+                        toast.error("Failed to generate connection URL.");
+                    }
+                } else {
+                    // Some other error
+                    toast.error("An error occurred while checking connection.");
+                }
+            }
+        } catch (error) {
+            console.error("Connection Error:", error);
+        } finally {
+            setIsConnecting(false);
+        }
+    };
+
+    // No longer using quillModules/quillFormats here as they are handled inside RichTextEditor
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* 1. Email Outreach */}
@@ -118,19 +236,17 @@ const MessagesTab = ({
                             </p>
                         </div>
                     </div>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 rounded-lg text-[10px] font-bold hover:bg-[#EA4335]/5 text-[#EA4335]"
-                        onClick={async () => {
-                            const text = emailBody || `Hi ${firstName},\n\nLoved your recent post about scaling operations...`;
-                            const toEmail = emailsArray[0] || '';
-                            const subject = emailSubject || `Scaling your operations at ${businessName}`;
-                            window.open(`mailto:${toEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`);
-                        }}
-                    >
-                        Send
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 rounded-lg text-[10px] font-bold hover:bg-[#EA4335]/5 text-[#EA4335]"
+                            isLoading={isConnecting}
+                            onClick={handleInitialSendAction}
+                        >
+                            {isConnecting ? 'Checking Connection...' : 'Send'}
+                        </Button>
+                    </div>
                 </div>
                 <div className="bg-gray-50/50 p-5 rounded-xl text-sm text-gray-700 font-medium leading-relaxed font-mono border border-gray-100 whitespace-pre-line group-hover:border-red-100 transition-colors">
                     {emailSubject && <div className="mb-3 pb-2 border-b border-gray-200/60 font-bold text-gray-900">Subject: {emailSubject}</div>}
@@ -178,6 +294,121 @@ const MessagesTab = ({
                     )}
                 </div>
             </div>
+
+            {/* Email Send Modal / Confirmation */}
+            {showEmailModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                        {/* Modal Header */}
+                        <div className="bg-[#EA4335] p-6 text-white flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-white/20 rounded-xl">
+                                    <Mail size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-lg">Send Outreach Email</h3>
+                                    <p className="text-[10px] opacity-80 font-bold uppercase tracking-widest">Admin Email Outreach</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    setShowEmailModal(false);
+                                    setEmailError('');
+                                }}
+                                className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-8 space-y-6">
+                            {!hasExistingEmail && (
+                                <div className="flex items-start gap-4 p-4 bg-amber-50 rounded-2xl border border-amber-100 mb-2">
+                                    <AlertCircle className="text-amber-500 shrink-0 mt-0.5" size={20} />
+                                    <p className="text-sm font-bold text-amber-800 leading-tight">
+                                        Email of this business is not available, if you have the email of this business put it below manually.
+                                    </p>
+                                </div>
+                            )}
+
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Recipient Email Address</label>
+                                    <div className="relative">
+                                        <input 
+                                            type="email"
+                                            value={manualEmail}
+                                            onChange={(e) => setManualEmail(e.target.value)}
+                                            placeholder="contact@business.com"
+                                            className="w-full h-12 pl-4 pr-10 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-[#EA4335] transition-all outline-none font-bold text-gray-800 placeholder:text-gray-300"
+                                        />
+                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
+                                            <Mail size={16} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Subject</label>
+                                    <input 
+                                        type="text"
+                                        value={subject}
+                                        onChange={(e) => setSubject(e.target.value)}
+                                        className="w-full h-12 px-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-[#EA4335] transition-all outline-none font-bold text-gray-800"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Message Body</label>
+                                    <div className="bg-gray-50 rounded-xl overflow-hidden border-2 border-gray-100 focus-within:border-[#EA4335] transition-all">
+                                        <RichTextEditor 
+                                            value={editorContent}
+                                            onChange={setEditorContent}
+                                            placeholder="Write your email content here..."
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {emailError && (
+                                <div className="flex items-center gap-2 p-3 bg-red-50 text-red-600 border border-red-100 rounded-xl text-xs font-bold animate-in slide-in-from-top-2">
+                                    <AlertCircle size={14} />
+                                    {emailError}
+                                </div>
+                            )}
+
+                            <div className="pt-2 flex gap-3">
+                                <Button 
+                                    variant="outline" 
+                                    className="flex-1 h-12 rounded-xl text-sm font-black border-2 border-gray-100"
+                                    onClick={() => {
+                                        setShowEmailModal(false);
+                                        setEmailError('');
+                                    }}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button 
+                                    className="flex-1 h-12 rounded-xl text-sm font-black bg-[#EA4335] hover:bg-[#d63d2f] text-white shadow-xl shadow-red-500/20"
+                                    onClick={handleSendEmail}
+                                    isLoading={isSending}
+                                >
+                                    {isSending ? 'Sending...' : 'Send Now'}
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="bg-gray-50 px-8 py-4 border-t border-gray-100">
+                            <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                <CheckCircle2 size={12} className="text-gray-400" />
+                                <span>Sent from {adminEmail || 'Admin System'}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

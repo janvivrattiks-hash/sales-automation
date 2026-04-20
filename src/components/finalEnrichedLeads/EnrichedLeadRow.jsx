@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import { Eye, Trash2, Phone, Mail, Globe } from 'lucide-react';
 import StarRating from '../ui/StarRating';
 import { deepGet, extractStr, scanSocials, getSocialIcon } from '../../utils/contactUtils';
@@ -23,6 +24,7 @@ const getSocialColor = (link) => {
 };
 
 const EnrichedLeadRow = ({ lead, index, leads, queryInfo, navigate, onDelete }) => {
+    const location = useLocation();
     const phoneStr = extractStr(deepGet(lead, ['mobile', 'MobileNumber', 'phone', 'contact_number', 'phone_number', 'Phone', 'Mobile']));
     const emailRaw = deepGet(lead, ['email', 'Email', 'email_address', 'email_addresses', 'emails']);
     let emailsList = [];
@@ -34,8 +36,8 @@ const EnrichedLeadRow = ({ lead, index, leads, queryInfo, navigate, onDelete }) 
     const websiteRaw = deepGet(lead, ['website', 'Website', 'website_url', 'url', 'domain', 'web', 'site_url']);
     let websiteStr = extractStr(websiteRaw, null);
 
-    // Filter out junk values (e.g., "no", "false", "none", "null")
-    const junkWebsites = ['no', 'false', 'none', 'null', 'undefined', 'n/a', 'na'];
+    // Filter out junk values (e.g., "no", "false", "yes", "none", "null")
+    const junkWebsites = ['no', 'n', 'false', 'none', 'null', 'undefined', 'n/a', 'na', 'yes', 'y'];
     if (websiteStr && (junkWebsites.includes(websiteStr.toLowerCase().trim()) || websiteStr.length < 4)) {
         websiteStr = null;
     }
@@ -54,8 +56,8 @@ const EnrichedLeadRow = ({ lead, index, leads, queryInfo, navigate, onDelete }) 
             {/* Business Name */}
             <td className="px-8 py-5">
                 <div>
-                    <p className="font-bold text-gray-900 text-sm leading-tight">{lead.name || lead.BusinessName || 'N/A'}</p>
-                    <p className="text-[10px] font-bold text-gray-400 tracking-tight uppercase mt-0.5">{lead.category || lead.Industry || lead.address || 'No category'}</p>
+                    <p className="font-bold text-gray-900 text-sm leading-tight">{lead.business_name || lead.name || lead.BusinessName || 'N/A'}</p>
+                    <p className="text-[10px] font-bold text-gray-400 tracking-tight uppercase mt-0.5">{lead.business_category || lead.category || lead.Industry || lead.address || 'No category'}</p>
                 </div>
             </td>
 
@@ -123,7 +125,15 @@ const EnrichedLeadRow = ({ lead, index, leads, queryInfo, navigate, onDelete }) 
                 <div className="flex items-center justify-end gap-3 text-gray-300">
                     <button
                         className="p-2 hover:text-primary transition-colors hover:bg-primary/5 rounded-lg active:scale-90"
-                        onClick={() => navigate('/lead-details', { state: { singleLead: lead, results: leads, queryInfo } })}
+                        onClick={() => navigate('/lead-details', { 
+                            state: { 
+                                ...location.state, 
+                                singleLead: lead, 
+                                results: leads, 
+                                queryInfo, 
+                                backUrl: location.pathname 
+                            } 
+                        })}
                     >
                         <Eye size={18} />
                     </button>

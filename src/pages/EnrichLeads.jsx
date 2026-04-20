@@ -17,21 +17,26 @@ const EnrichLeads = () => {
     const { adminToken } = useContext(AppContext);
 
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-    const [leadData, setLeadData] = useState(null);
-    const [filters, setFilters] = useState({
+    const [leadData, setLeadData] = useState(location.state?.results ? {
+        leads: Array.isArray(location.state.results) ? location.state.results : (location.state.results?.data || []),
+        ...location.state.queryInfo
+    } : null);
+    const [filters, setFilters] = useState(location.state?.filters || {
         website: 'Any',
         minRating: '',
         category: '',
-        parameter: '',
+        reviews: '',
     });
 
-    const [selectedLeads, setSelectedLeads] = useState([]);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [originalLeads, setOriginalLeads] = useState([]);
+    const [selectedLeads, setSelectedLeads] = useState(location.state?.selectedLeads || []);
+    const [currentPage, setCurrentPage] = useState(location.state?.currentPage || 1);
+    const [searchTerm, setSearchTerm] = useState(location.state?.searchTerm || '');
+    const [originalLeads, setOriginalLeads] = useState(location.state?.results 
+        ? (Array.isArray(location.state.results) ? location.state.results : (location.state.results?.data || [])) 
+        : []);
     const [isFiltering, setIsFiltering] = useState(false);
-    const [filteredLeads, setFilteredLeads] = useState([]);
-    const [isFiltered, setIsFiltered] = useState(false);
+    const [filteredLeads, setFilteredLeads] = useState(location.state?.filteredLeads || []);
+    const [isFiltered, setIsFiltered] = useState(location.state?.isFiltered || false);
     
     // Deletion State
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -41,28 +46,18 @@ const EnrichLeads = () => {
     const itemsPerPage = 5;
 
     useEffect(() => {
-        if (location.state?.results) {
-            const leadsArray = Array.isArray(location.state.results)
-                ? location.state.results
-                : location.state.results?.data || [];
-
-            setLeadData({
-                leads: leadsArray,
-                ...(location.state.queryInfo || {})
-            });
-            setOriginalLeads(leadsArray);
-
-            if (location.state.queryInfo?.niche) {
-                setFilters(prev => ({ ...prev, category: location.state.queryInfo.niche }));
-            }
+        // Sync niche to category filter if coming from generic navigation
+        if (location.state?.queryInfo?.niche && !location.state?.filters) {
+            setFilters(prev => ({ ...prev, category: location.state.queryInfo.niche }));
         }
-    }, [location.state]);
+    }, [location.state?.queryInfo?.niche]);
 
     const handleFilter = async () => {
         setIsFiltering(true);
         const filterParams = {
             website: filters.website || 'Any',
             ratings: filters.ratings || filters.minRating || 0,
+            reviews: filters.reviews || 0,
             category: filters.category || ''
         };
 
@@ -115,7 +110,7 @@ const EnrichLeads = () => {
     };
 
     const toggleSelectAll = () => {
-        const currentLeadIds = currentLeads.map(l => l.id || l.MobileNumber);
+        const currentLeadIds = currentLeads.map(l => l.id || l.MobileNumber || l.result_id || l.business_information_id);
         const allSelected = currentLeadIds.every(id => selectedLeads.includes(id));
         if (allSelected) {
             setSelectedLeads(prev => prev.filter(id => !currentLeadIds.includes(id)));
@@ -130,10 +125,6 @@ const EnrichLeads = () => {
     const areaValue = leadData?.area || 'N/A';
 
     const baseLeads = isFiltered ? filteredLeads : originalLeads;
-
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [baseLeads]);
 
     const leads = baseLeads.filter(lead => {
         if (!lead) return false;
@@ -159,7 +150,7 @@ const EnrichLeads = () => {
             const success = await Api.deleteLead(leadToDelete, adminToken);
             if (success) {
                 // Update local state by filtering out the deleted lead
-                setOriginalLeads(prev => prev.filter(l => (l.id || l.result_id || l.MobileNumber || l.business_information_id) !== leadToDelete));
+                setOriginalLeads(prev => prev.filter(l => (l.id || l.MobileNumber || l.result_id || l.business_information_id) !== leadToDelete));
                 setIsDeleteModalOpen(false);
                 setLeadToDelete(null);
             }
@@ -221,6 +212,10 @@ const EnrichLeads = () => {
                 cityValue={cityValue}
                 areaValue={areaValue}
                 onDeleteLead={handleDeleteClick}
+                filters={filters}
+                isFiltered={isFiltered}
+                filteredLeads={filteredLeads}
+                searchTerm={searchTerm}
             />
 
             <DeleteConfirmModal
@@ -238,7 +233,7 @@ const EnrichLeads = () => {
                     className="px-10 shadow-2xl shadow-primary/30 text-lg"
                     onClick={() => {
                         const leadsToPass = selectedLeads.length > 0
-                            ? leads.filter(l => selectedLeads.includes(l.id || l.MobileNumber || l.result_id))
+                            ? leads.filter(l => selectedLeads.includes(l.id || l.MobileNumber || l.result_id || l.business_information_id))
                             : leads;
                         navigate('/review-leads', {
                             state: {

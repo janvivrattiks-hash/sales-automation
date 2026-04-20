@@ -2,7 +2,7 @@ import React from 'react';
 import { Eye, Trash2 } from 'lucide-react';
 import StarRating from '../ui/StarRating';
 
-const EnrichLeadRow = ({ lead, index, isSelected, onToggleSelect, navigate, queryValue, cityValue, areaValue, leads, onDelete }) => {
+const EnrichLeadRow = ({ lead, index, isSelected, onToggleSelect, navigate, queryValue, cityValue, areaValue, leads, onDelete, savedCurrentPage, savedSelectedLeads, filters, isFiltered, filteredLeads, searchTerm }) => {
     const leadId = lead.id || lead.MobileNumber || lead.result_id || lead.business_information_id;
 
     const handleViewLead = () => {
@@ -10,7 +10,14 @@ const EnrichLeadRow = ({ lead, index, isSelected, onToggleSelect, navigate, quer
             state: {
                 singleLead: lead,
                 results: leads,
-                queryInfo: { niche: queryValue, city: cityValue, area: areaValue }
+                queryInfo: { niche: queryValue, city: cityValue, area: areaValue },
+                currentPage: savedCurrentPage,
+                selectedLeads: savedSelectedLeads,
+                filters: filters,
+                isFiltered: isFiltered,
+                filteredLeads: filteredLeads,
+                searchTerm: searchTerm,
+                backUrl: '/enrich'
             }
         });
     };

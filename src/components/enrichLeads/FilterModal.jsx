@@ -77,30 +77,19 @@ const FilterModal = ({ isOpen, onClose, filters, setFilters, onApply, isFilterin
                     </div>
                 </div>
 
-                {/* Additional Parameters */}
+                {/* Reviews */}
                 <div className="space-y-4">
-                    <label className="text-sm font-bold text-gray-900">Additional Parameters</label>
+                    <label className="text-sm font-bold text-gray-900">Minimum Reviews</label>
                     <div className="relative">
-                        <select
-                            className="w-full pl-4 pr-10 py-3 bg-white border border-gray-100 rounded-xl text-sm font-medium text-gray-500 appearance-none focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer transition-all"
-                            value={filters.parameter}
-                            onChange={(e) => setFilters(prev => ({ ...prev, parameter: e.target.value }))}
-                        >
-                            <option value="" disabled>Select parameter (e.g., Industry, Size)</option>
-                            <option value="industry">Industry</option>
-                            <option value="size">Company Size</option>
-                            <option value="revenue">Annual Revenue</option>
-                        </select>
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                            <ChevronRightIcon size={18} className="rotate-90" />
-                        </div>
+                        <input
+                            type="number"
+                            placeholder="e.g., 4000"
+                            value={filters.reviews || ''}
+                            onChange={(e) => setFilters(prev => ({ ...prev, reviews: e.target.value }))}
+                            className="w-full pl-4 pr-4 py-3 bg-white border border-gray-100 rounded-xl text-sm font-medium text-gray-900 focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        />
                     </div>
                 </div>
-
-                {/* Add More */}
-                <button className="flex items-center gap-2 text-primary text-sm font-bold hover:opacity-80 transition-opacity">
-                    <Plus size={18} /> Add More
-                </button>
             </div>
         </Modal>
     );

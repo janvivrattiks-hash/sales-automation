@@ -68,10 +68,19 @@ const FilterForm = ({ filters, setFilters }) => {
                 </div>
             </div>
 
-            {/* Add More */}
-            <button className="flex items-center gap-2 text-primary text-sm font-bold hover:opacity-80 transition-opacity pb-2">
-                <Plus size={18} /> Add More
-            </button>
+            {/* Reviews */}
+            <div className="space-y-4">
+                <label className="text-sm font-bold text-gray-900">Minimum Reviews</label>
+                <div className="relative">
+                    <input
+                        type="number"
+                        placeholder="e.g., 4000"
+                        value={filters.reviews || ''}
+                        onChange={(e) => setFilters({ ...filters, reviews: e.target.value })}
+                        className="w-full px-4 py-3 bg-white border border-gray-100 rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                    />
+                </div>
+            </div>
         </div>
     );
 };

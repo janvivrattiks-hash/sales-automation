@@ -53,19 +53,17 @@ const PreferenceSelect = ({ label, value, onChange, options, icon: Icon, subtext
 const EditAiPreferenceModal = ({ isOpen, onClose, currentData, onUpdate }) => {
     const { user, adminToken } = useApp();
     const [tone, setTone] = useState('');
-    const [personalization, setPersonalization] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         if (currentData) {
             setTone(currentData.tone || '');
-            setPersonalization(currentData.personalizationLevel || '');
         }
     }, [currentData, isOpen]);
 
     const handleSubmit = async () => {
-        if (!tone || !personalization) {
-            toast.error("Please fill in all fields");
+        if (!tone) {
+            toast.error("Please select a tone preference");
             return;
         }
 
@@ -81,13 +79,12 @@ const EditAiPreferenceModal = ({ isOpen, onClose, currentData, onUpdate }) => {
 
         setIsSubmitting(true);
         try {
-            const result = await Api.updateAiPreference(adminToken, user.id, tone, personalization);
+            const result = await Api.updateAiPreference(adminToken, user.id, tone);
 
             if (result && result.data) {
                 if (onUpdate) {
                     onUpdate({
                         tone: result.data.ai_tone_preference,
-                        personalizationLevel: result.data.ai_personalise_level,
                     });
                 }
 
@@ -144,15 +141,6 @@ const EditAiPreferenceModal = ({ isOpen, onClose, currentData, onUpdate }) => {
                     icon={MessageSquare}
                     options={['Friendly', 'Professional', 'Assertive', 'Empathetic']}
                     subtext="Set the emotional resonance and communication style."
-                />
-
-                <PreferenceSelect
-                    label="AI Personalization Level"
-                    value={personalization}
-                    onChange={setPersonalization}
-                    icon={Sliders}
-                    options={['Low', 'Medium', 'High', 'Hyper']}
-                    subtext="Determine how deep the AI researches individual lead data."
                 />
             </div>
         </Modal>

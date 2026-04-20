@@ -9,6 +9,17 @@ const Pagination = ({
 }) => {
     const totalPages = Math.ceil(totalItems / itemsPerPage);
 
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            onPageChange(newPage);
+            // Scroll to top of window when page changes
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+    };
+
     if (totalItems === 0) return null;
 
     const startIndex = (currentPage - 1) * itemsPerPage + 1;
@@ -41,7 +52,7 @@ const Pagination = ({
 
             <div className="flex items-center gap-1">
                 <button
-                    onClick={() => onPageChange(currentPage - 1)}
+                    onClick={() => handlePageChange(currentPage - 1)}
                     disabled={currentPage === 1}
                     className="w-10 h-10 flex items-center justify-center rounded-xl border border-gray-100 text-gray-400 hover:text-primary hover:border-primary/20 hover:bg-primary/5 transition-all disabled:opacity-30 disabled:cursor-not-allowed active:scale-90"
                 >
@@ -51,7 +62,7 @@ const Pagination = ({
                 {getPageNumbers().map(number => (
                     <button
                         key={number}
-                        onClick={() => onPageChange(number)}
+                        onClick={() => handlePageChange(number)}
                         className={`w-10 h-10 flex items-center justify-center rounded-xl text-sm font-bold transition-all active:scale-90 ${currentPage === number
                             ? 'bg-primary text-white shadow-lg shadow-primary/25'
                             : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 border border-transparent'
@@ -62,7 +73,7 @@ const Pagination = ({
                 ))}
 
                 <button
-                    onClick={() => onPageChange(currentPage + 1)}
+                    onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
                     className="w-10 h-10 flex items-center justify-center rounded-xl border border-gray-100 text-gray-400 hover:text-primary hover:border-primary/20 hover:bg-primary/5 transition-all disabled:opacity-30 disabled:cursor-not-allowed active:scale-90"
                 >

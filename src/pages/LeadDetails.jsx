@@ -51,7 +51,7 @@ const LeadDetails = () => {
     const hasRealOwnerName = (lead) => {
         if (!lead) return false;
 
-        let ownerName = lead?.owner_name || lead?.owner || lead?.owner_info || null;
+        let ownerName = lead?.lead_owner || lead?.main_owner || lead?.owner_name || lead?.owner || lead?.owner_info || null;
 
         // Handle if it's somehow an array (take first)
         if (Array.isArray(ownerName)) {
@@ -219,7 +219,7 @@ const LeadDetails = () => {
             if (response) {
                 console.log("✅ Search job deleted successfully");
                 setDeleteSearchModalOpen(false);
-                navigate('/search-history');
+                navigate('/search-history', { replace: true });
             }
         } catch (error) {
             console.error("❌ Error deleting search job:", error);
@@ -232,13 +232,30 @@ const LeadDetails = () => {
     // Check location state for a selected lead (pushed by handleViewLead navigate)
     const activeLead = location.state?.selectedLead || location.state?.singleLead;
 
+    // Scroll to top whenever the active lead (detail view) changes
+    useEffect(() => {
+        if (activeLead) {
+            window.scrollTo(0, 0);
+        }
+    }, [activeLead]);
+
     if (activeLead) {
         return (
             <SingleLeadDetail
                 lead={activeLead}
                 onBack={() => {
-                    // Go back one step in browser history -> returns to the list view
-                    navigate(-1);
+                    // Go back explicitly with full state preservation
+                    if (location.state?.backUrl) {
+                        navigate(location.state.backUrl, { 
+                            state: { 
+                                ...location.state,
+                                selectedLead: null,
+                                singleLead: null
+                            } 
+                        });
+                    } else {
+                        navigate(-1);
+                    }
                 }}
             />
         );

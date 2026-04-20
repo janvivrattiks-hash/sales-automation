@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
 const ScrollToTop = () => {
-  const { pathname } = useLocation();
+  const location = useLocation();
 
   useEffect(() => {
     // Disable browser automatic scroll restoration to prevent jumps during navigation
@@ -12,12 +12,8 @@ const ScrollToTop = () => {
   }, []);
 
   useEffect(() => {
-    // Core scroll reset
-    window.scrollTo({
-      top: 0,
-      left: 0,
-      behavior: 'instant'
-    });
+    // Core scroll reset - triggers on every navigation (even same path)
+    window.scrollTo(0, 0);
 
     // Secondary reset for components that might change height after initial render
     const rafId = requestAnimationFrame(() => {
@@ -25,7 +21,7 @@ const ScrollToTop = () => {
     });
 
     return () => cancelAnimationFrame(rafId);
-  }, [pathname]);
+  }, [location]);
 
   return null;
 };

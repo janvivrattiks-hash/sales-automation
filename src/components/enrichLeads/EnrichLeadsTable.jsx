@@ -17,7 +17,11 @@ const EnrichLeadsTable = ({
     queryValue,
     cityValue,
     areaValue,
-    onDeleteLead
+    onDeleteLead,
+    filters,
+    isFiltered,
+    filteredLeads,
+    searchTerm
 }) => {
     const allCurrentSelected = currentLeads.length > 0 &&
         currentLeads.every(l => selectedLeads.includes(l.id || l.MobileNumber));
@@ -62,6 +66,12 @@ const EnrichLeadsTable = ({
                                     areaValue={areaValue}
                                     leads={leads}
                                     onDelete={onDeleteLead}
+                                    savedCurrentPage={currentPage}
+                                    savedSelectedLeads={selectedLeads}
+                                    filters={filters}
+                                    isFiltered={isFiltered}
+                                    filteredLeads={filteredLeads}
+                                    searchTerm={searchTerm}
                                 />
                             ))
                         ) : (

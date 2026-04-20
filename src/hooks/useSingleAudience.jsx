@@ -32,11 +32,15 @@ const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
     const [noteTitle, setNoteTitle] = useState('');
     const [noteContent, setNoteContent] = useState('');
     const [isAddingTask, setIsAddingTask] = useState(false);
+    const [isEditingTask, setIsEditingTask] = useState(false);
+    const [taskToEdit, setTaskToEdit] = useState(null);
     const [taskName, setTaskName] = useState('');
     const [taskDueDate, setTaskDueDate] = useState('');
     const [taskStatus, setTaskStatus] = useState('To Do');
     const [taskDescription, setTaskDescription] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isDeleteTaskDialogOpen, setIsDeleteTaskDialogOpen] = useState(false);
+    const [taskToDelete, setTaskToDelete] = useState(null);
 
     // Initial Fetch
     useEffect(() => {
@@ -161,9 +165,28 @@ const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
         try {
             setIsLoadingActivity(true);
             const token = localStorage.getItem('admin_token');
-            const data = await Api.getEmailActivityStatus(token, leadId);
-            console.log("fetchActivity API Response:", data);
+            
+            // 1. Fetch the history logs first
+            const data = await Api.getGmailLeadHistory(leadId, token);
+            console.log("fetchActivity (Gmail) Logs Fetched:", data);
             setActivityLogs(data || []);
+
+            // 2. Sync open status for each activity individually (by activity ID)
+            if (data && data.length > 0) {
+                console.log("Syncing open status for each activity...");
+                await Promise.all(
+                    data.map(log => {
+                        if (log.id) {
+                            return Api.syncGmailOpenStatus(log.id, token);
+                        }
+                        return Promise.resolve();
+                    })
+                );
+                
+                // 3. Re-fetch after syncing to get updated timestamps/is_opened status
+                const updatedData = await Api.getGmailLeadHistory(leadId, token);
+                setActivityLogs(updatedData || []);
+            }
         } catch (error) {
             console.error('Error fetching activity:', error);
             setActivityLogs([]);
@@ -329,26 +352,69 @@ const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
         try {
             setIsSubmitting(true);
             const token = localStorage.getItem('admin_token');
-            // Api.addTask signature: (data, token)
-            await Api.addTask({
+            
+            const taskData = {
                 business_id: leadId,
                 task_name: taskName,
                 due_date: taskDueDate,
                 status: taskStatus,
                 description: taskDescription
-            }, token);
-            // toast.success('Task created successfully');
-            setTaskName('');
-            setTaskDueDate('');
-            setTaskStatus('To Do');
-            setTaskDescription('');
-            setIsAddingTask(false);
+            };
+
+            if (isEditingTask && taskToEdit) {
+                await Api.updateTask(taskToEdit.id || taskToEdit._id, taskData, token);
+            } else {
+                await Api.addTask(taskData, token);
+            }
+
+            resetTaskForm();
             fetchTasks();
         } catch (error) {
-            toast.error('Failed to create task');
+            toast.error(isEditingTask ? 'Failed to update task' : 'Failed to create task');
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const openDeleteTaskModal = (task) => {
+        setTaskToDelete(task);
+        setIsDeleteTaskDialogOpen(true);
+    };
+
+    const confirmDeleteTask = async () => {
+        if (!taskToDelete) return;
+        try {
+            setIsSubmitting(true);
+            const token = localStorage.getItem('admin_token');
+            await Api.deleteTask(taskToDelete.id || taskToDelete._id, token);
+            fetchTasks();
+            setIsDeleteTaskDialogOpen(false);
+            setTaskToDelete(null);
+        } catch (error) {
+            toast.error('Failed to delete task');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleEditTask = (task) => {
+        setTaskToEdit(task);
+        setTaskName(task.task_name || '');
+        setTaskDueDate(task.due_date || '');
+        setTaskStatus(task.status || 'To Do');
+        setTaskDescription(task.description || '');
+        setIsEditingTask(true);
+        setIsAddingTask(true);
+    };
+
+    const resetTaskForm = () => {
+        setTaskName('');
+        setTaskDueDate('');
+        setTaskStatus('To Do');
+        setTaskDescription('');
+        setIsAddingTask(false);
+        setIsEditingTask(false);
+        setTaskToEdit(null);
     };
 
     // UI Logic (Moved here for leaner component)
@@ -411,7 +477,7 @@ const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
         // --- SUPER SCANNER: Finds fields at any depth ---
         const discovered = {
             ratingVal: '0.0',
-            phoneStr: '',
+            allPhones: [],
             websiteStr: '',
             sources: [], // Array to collect multiple sources
             owner: '',
@@ -443,13 +509,27 @@ const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
 
                 // 2. Phone
                 if ((lowKey.includes('phone') || lowKey.includes('mobile') || lowKey.includes('contact_no') || lowKey.includes('telephone') || lowKey.includes('contact_number') || lowKey.includes('mobilenumber') || lowKey.includes('cell') || lowKey.includes('tel') || lowKey.includes('office')) && val) {
+                    const addIfUnique = (p) => {
+                        if (!p || typeof p !== 'string') return;
+                        const digits = p.replace(/\D/g, '');
+                        if (digits.length < 7) return; // Ignore very short numbers
+                        const last10 = digits.slice(-10);
+                        const isDup = discovered.allPhones.some(existing => {
+                            const exDigits = existing.replace(/\D/g, '');
+                            return exDigits.slice(-10) === last10;
+                        });
+                        if (!isDup) discovered.allPhones.push(p);
+                    };
+
                     if (typeof val === 'string' && val.length > 5 && /[\d]/.test(val)) {
-                        discovered.phoneStr = val;
+                        addIfUnique(val);
                     } else if (typeof val === 'object' && !Array.isArray(val)) {
                         const possiblePhoneValue = val.number || val.value || val.contact || val.phone || val.mobile || val.formatted || val.international || val.primary;
                         if (typeof possiblePhoneValue === 'string' && possiblePhoneValue.length > 5 && /[\d]/.test(possiblePhoneValue)) {
-                            discovered.phoneStr = possiblePhoneValue;
+                            addIfUnique(possiblePhoneValue);
                         }
+                    } else if (Array.isArray(val)) {
+                        val.forEach(v => addIfUnique(v));
                     }
                 }
 
@@ -505,10 +585,17 @@ const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
         // --- Final Field Normalization ---
         return {
             businessName: extractString(bizInfo.name || bizInfo.business_name || getDeepField(contactInfo, ['business_name', 'BusinessName', 'company_name', 'name', 'Business Name', 'organization', 'trade_name', 'Company', 'brand_name', 'Business_Name']), 'N/A'),
-            contactName: extractString(discovered.owner || getDeepField(contactInfo, ['full_name', 'contact_name', 'contact_person', 'owner_name', 'name', 'Contact Name', 'Full Name', 'OwnerName', 'ContactPerson', 'ownerName', 'first_name', 'last_name']), 'N/A'),
+            contactName: (() => {
+                const rawOwner = discovered.owner || getDeepField(contactInfo, ['lead_owner', 'main_owner', 'full_name', 'contact_name', 'contact_person', 'owner_name', 'name', 'Contact Name', 'Full Name', 'OwnerName', 'ContactPerson', 'ownerName', 'first_name', 'last_name']);
+                if (!rawOwner) return 'N/A';
+                // Split by common delimiters and take the first one
+                const names = String(rawOwner).split(/[,;|]/).map(n => n.trim()).filter(Boolean);
+                return names.length > 0 ? names[0] : 'N/A';
+            })(),
             category: extractString(bizInfo.category || bizInfo.industry || getDeepField(contactInfo, ['category', 'industry', 'business_type', 'Industry', 'niche', 'sector', 'business_category', 'business_category_name']), 'N/A'),
             locationStr: extractString(bizInfo.full_address || bizInfo.address || getDeepField(contactInfo, ['location', 'address', 'Address', 'full_address', 'formatted_address', 'city', 'Location', 'City', 'full_location', 'physical_address']), 'N/A'),
-            phoneStr: discovered.phoneStr || extractString(bizInfo.phone || getDeepField(contactInfo, ['phone', 'phone_number', 'mobile', 'MobileNumber', 'contact_number', 'Phone', 'work_phone', 'contact_phone', 'telephone', 'mobile_no', 'contact_no', 'Mobile', 'contact_mobile', 'phoneNumber']), 'N/A'),
+            phoneStr: discovered.allPhones.length > 0 ? discovered.allPhones.join(', ') : extractString(bizInfo.phone || getDeepField(contactInfo, ['phone', 'phone_number', 'mobile', 'MobileNumber', 'contact_number', 'Phone', 'work_phone', 'contact_phone', 'telephone', 'mobile_no', 'contact_no', 'Mobile', 'contact_mobile', 'phoneNumber']), 'N/A'),
+            allPhones: discovered.allPhones, // Also passing as array for dedicated rendering
             websiteStr: discovered.websiteStr || extractString(bizInfo.website || getDeepField(contactInfo, ['website', 'website_url', 'domain', 'url', 'Website', 'site_url', 'home_page', 'homepage', 'web']), 'N/A'),
             ratingVal: discovered.ratingVal !== '0.0' ? discovered.ratingVal : (bizInfo.rating || getDeepField(contactInfo, ['rating', 'google_rating', 'Rating', 'stars', 'star_rating', 'google_map_rating', 'average_rating', 'score', 'googleRating', 'avg_rating']) || '0.0'),
             source: discovered.sources.length > 0
@@ -575,7 +662,15 @@ const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
         handleTriggerReminders,
         isTriggeringReminders,
         handleAddTask,
+        openDeleteTaskModal,
+        confirmDeleteTask,
+        isDeleteTaskDialogOpen,
+        taskToDelete,
+        setIsDeleteTaskDialogOpen,
+        handleEditTask,
+        resetTaskForm,
         handleDeleteLead,
+        isEditingTask,
 
         // UI Utils
         getHostname,

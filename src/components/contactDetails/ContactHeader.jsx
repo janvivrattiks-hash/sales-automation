@@ -18,7 +18,13 @@ const ContactHeader = ({ businessName, categoryStr, navigate, location }) => {
                     <p className="text-gray-500 text-sm mt-1">{categoryStr}</p>
                 </div>
                 <button
-                    onClick={() => navigate('/contacts', { state: { activeTab: location.state?.fromTab || 'raw' } })}
+                    onClick={() => {
+                        if (location.state?.backUrl) {
+                            navigate(location.state.backUrl, { state: { audience: location.state.audience } });
+                        } else {
+                            navigate('/contacts', { state: { activeTab: location.state?.fromTab || 'raw' } });
+                        }
+                    }}
                     className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-all text-sm font-bold active:scale-95 shadow-sm"
                 >
                     <ChevronLeft size={16} />

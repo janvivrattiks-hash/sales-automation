@@ -93,7 +93,21 @@ const normalizeLead = (lead) => {
 
     // 1. Extract Fields using Recursive Scanner (Rating is recursive, others are shallow/wrap-aware)
     const phone = findIn(lead, PHONE_FIELDS, false) || 'N/A';
-    const email = findIn(lead, EMAIL_FIELDS, false) || 'N/A';
+    
+    // CUSTOM EMAIL LOGIC: Prioritize 'email' then 'email_enrichment', skip "Not found"
+    const isValidEmail = (e) => e && typeof e === 'string' && e.toLowerCase() !== 'n/a' && e.toLowerCase() !== 'not found' && e.toLowerCase() !== 'null';
+    
+    let email = findIn(lead, EMAIL_FIELDS, false);
+    const emailEnrich = lead.email_enrichment;
+
+    if (!isValidEmail(email)) {
+        if (isValidEmail(emailEnrich)) {
+            email = emailEnrich;
+        } else {
+            email = 'N/A';
+        }
+    }
+
     const website = findIn(lead, WEBSITE_FIELDS, false) || '';
     
     // 2. High-precision recursive rating extraction
@@ -344,7 +358,11 @@ const AudienceDetails = () => {
     const isEnriched = (audience?.tag || '').toLowerCase().includes('enriched') || location.state?.activeTab === 'enriched';
 
     const totalLeads = leads.length;
-    const verifiedContacts = leads.filter(l => l.email || l.Email || l.verified_email).length;
+    const verifiedContacts = leads.filter(l => 
+        (l.email && l.email !== 'N/A' && l.email !== 'Not found') || 
+        (l.Email && l.Email !== 'N/A' && l.Email !== 'Not found') ||
+        l.verified_email
+    ).length;
 
     const socialContactsFound = leads.filter(l =>
         findSocialLink(l, 'facebook') ||
@@ -355,7 +373,8 @@ const AudienceDetails = () => {
     ).length;
 
     const enrichmentRate = totalLeads > 0 ? Math.round((leads.filter(l =>
-        l.email || l.Email ||
+        (l.email && l.email !== 'N/A' && l.email !== 'Not found') || 
+        (l.Email && l.Email !== 'N/A' && l.Email !== 'Not found') ||
         findSocialLink(l, 'facebook') ||
         findSocialLink(l, 'instagram') ||
         findSocialLink(l, 'linkedin') ||
@@ -389,10 +408,16 @@ const AudienceDetails = () => {
 
         setTimeout(() => {
             console.log("Navigating to single lead. isEnriched flag:", isEnriched, "contact:", contact);
+            const navigationState = { 
+                singleLead: contact, 
+                backUrl: '/audience-details', 
+                audience: audience // Crucial for restoring this page
+            };
+
             if (isEnriched || contact.status === 'ENRICHED' || contact.status === 'Enriched') {
-                navigate('/single-audience-view', { state: { singleLead: contact, audience: audience } });
+                navigate('/single-audience-view', { state: navigationState });
             } else {
-                navigate('/contact-details', { state: { singleLead: contact } });
+                navigate('/contact-details', { state: navigationState });
             }
             setViewingId(null);
         }, 300);

@@ -106,10 +106,36 @@ const ContactDetails = () => {
     }
 
     // EXTRACTION WITH ROBUST ALIAS LISTS
-    const phoneStr = extractStr(getDeepField(finalLead, [
-        'contact_mobile', 'mobileNumber', 'contactMobile', 'mobile_no', 'phone_number', 'phone', 
-        'mobile', 'phoneNumber', 'contact_number', 'phones', 'Phone', 'telephone', 'Mobile', 'MobileNumber'
-    ]) || 'N/A');
+    // ALL PHONES SCANNER WITH LAST-10-DIGIT DEDUPLICATION
+    const allPhones = (() => {
+        const uniqueList = [];
+        const seenLast10 = new Set();
+
+        const addIfUnique = (p) => {
+            if (!p || typeof p !== 'string') return;
+            const digits = p.replace(/\D/g, '');
+            if (digits.length < 7) return; 
+            const last10 = digits.slice(-10);
+            if (!seenLast10.has(last10)) {
+                seenLast10.add(last10);
+                uniqueList.push(p.trim());
+            }
+        };
+
+        const rawPhones = getDeepField(finalLead, [
+            'phones', 'contact_mobile', 'mobileNumber', 'contactMobile', 'mobile_no', 'phone_number', 'phone', 
+            'mobile', 'phoneNumber', 'contact_number', 'Phone', 'telephone', 'Mobile', 'MobileNumber', 'whatsapp'
+        ]);
+        if (Array.isArray(rawPhones)) rawPhones.forEach(v => addIfUnique(v));
+        else if (rawPhones && typeof rawPhones === 'string') rawPhones.split(',').map(s => s.trim()).forEach(v => addIfUnique(v));
+        
+        // Final fallback scanner
+        for (const [k, v] of Object.entries(finalLead)) {
+            if (k.toLowerCase().includes('phone') && typeof v === 'string') addIfUnique(v);
+        }
+        return uniqueList;
+    })();
+    const phoneStr = allPhones.length > 0 ? allPhones.join(', ') : 'N/A';
 
     const businessName = extractStr(getDeepField(finalLead, [
         'business_name', 'BusinessName', 'name', 'company_name', 'Company', 'brand_name', 'org_name', 'Business_Name'
@@ -135,7 +161,8 @@ const ContactDetails = () => {
     const categoryStr = extractStr(getDeepField(finalLead, ['category', 'industry', 'Industry', 'niche', 'vertical']) || 'Uncategorized');
     const addressStr = extractStr(getDeepField(finalLead, ['address', 'location', 'Address', 'full_address', 'Location', 'full_location']) || 'N/A');
     const websiteStr = extractStr(getDeepField(finalLead, ['website', 'Website', 'url', 'website_url', 'domain', 'site_url']) || null, null);
-    const ownerName = extractStr(getDeepField(finalLead, ['owner_name', 'full_name', 'contact_person', 'rep_name', 'representative_name', 'OwnerName', 'ContactPerson', 'person_name']) || 'N/A');
+    const ownerNameRaw = extractStr(getDeepField(finalLead, ['lead_owner', 'main_owner', 'owner_name', 'full_name', 'contact_person', 'rep_name', 'representative_name', 'OwnerName', 'ContactPerson', 'person_name']) || 'N/A');
+    const ownerName = ownerNameRaw !== 'N/A' ? ownerNameRaw.split(/[,;|]/)[0].trim() : 'N/A';
     const extractedSocials = scanSocials(finalLead);
 
     return (
@@ -151,6 +178,7 @@ const ContactDetails = () => {
                 websiteStr={websiteStr}
                 extractedSocials={extractedSocials}
                 ownerName={ownerName}
+                allPhones={allPhones}
                 reviewsRaw={reviewsRaw}
                 ratingVal={ratingVal}
             />

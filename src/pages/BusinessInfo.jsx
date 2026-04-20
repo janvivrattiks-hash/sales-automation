@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import ChangePasswordModal from '../components/modals/ChangePasswordModal';
-import EditAiPreferenceModal from '../components/modals/EditAiPreferenceModal';
 
 // Components
 import BusinessHeader from '../components/businessinfo/BusinessHeader';
 import BasicInfoCard from '../components/businessinfo/BasicInfoCard';
 import AiPreferenceCard from '../components/businessinfo/AiPreferenceCard';
+import ProductsCard from '../components/businessinfo/ProductsCard';
+
+// Modals
+import ChangePasswordModal from '../components/modals/ChangePasswordModal';
+import EditAiPreferenceModal from '../components/modals/EditAiPreferenceModal';
+import ProductModal from '../components/modals/ProductModal';
 
 // Hooks
 import { useBusinessInfo } from '../hooks/useBusinessInfo';
@@ -17,15 +21,31 @@ const BusinessInfo = () => {
     const {
         businessData,
         aiPreference,
+        products,
+        isProductsLoading,
         isLoading,
         isUploadingLogo,
         fileInputRef,
         handleLogoChange,
-        handleUpdateAiPreference
+        handleUpdateAiPreference,
+        handleAddProduct,
+        handleUpdateProduct,
+        handleDeleteProduct
     } = useBusinessInfo();
 
     const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
     const [isEditAiModalOpen, setIsEditAiModalOpen] = useState(false);
+    
+    // Product Modal State
+    const [productModalState, setProductModalState] = useState({
+        isOpen: false,
+        mode: 'add',
+        currentData: null
+    });
+
+    const openAddProduct = () => setProductModalState({ isOpen: true, mode: 'add', currentData: null });
+    const openEditProduct = (product) => setProductModalState({ isOpen: true, mode: 'edit', currentData: product });
+    const closeProductModal = () => setProductModalState({ ...productModalState, isOpen: false });
 
     if (isLoading) {
         return (
@@ -50,10 +70,20 @@ const BusinessInfo = () => {
                 onLogoChange={handleLogoChange}
             />
 
-            <AiPreferenceCard 
-                aiPreference={aiPreference}
-                onEdit={() => setIsEditAiModalOpen(true)}
-            />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-stretch">
+                <AiPreferenceCard 
+                    aiPreference={aiPreference}
+                    onEdit={() => setIsEditAiModalOpen(true)}
+                />
+
+                <ProductsCard 
+                    products={Array.isArray(products) ? products : []}
+                    isLoading={isProductsLoading}
+                    onAdd={openAddProduct}
+                    onEdit={openEditProduct}
+                    onDelete={handleDeleteProduct}
+                />
+            </div>
 
             {/* Modals */}
             <ChangePasswordModal 
@@ -66,6 +96,15 @@ const BusinessInfo = () => {
                 onClose={() => setIsEditAiModalOpen(false)}
                 currentData={aiPreference}
                 onUpdate={handleUpdateAiPreference}
+            />
+
+            <ProductModal 
+                isOpen={productModalState.isOpen}
+                onClose={closeProductModal}
+                mode={productModalState.mode}
+                currentData={productModalState.currentData}
+                onAdd={handleAddProduct}
+                onUpdate={handleUpdateProduct}
             />
         </div>
     );

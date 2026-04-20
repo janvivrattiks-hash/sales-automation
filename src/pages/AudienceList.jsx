@@ -41,7 +41,7 @@ const AudienceRow = ({
     const updatedAt = aud.updated_at || aud.created_at;
     const audTag = (aud.tag || '').toLowerCase().includes('enriched') ? 'Enriched' : 'Segment';
     // Handle lead count more robustly
-    const leadCount = aud.leads?.length || aud.count || aud.leads_count || 0;
+    const leadCount = aud.businesses?.length || aud.leads?.length || aud.count || aud.leads_count || aud.business_ids?.length || 0;
 
     return (
         <tr className={`hover:bg-primary/[0.02] even:bg-gray-50/40 transition-colors group ${isNew ? 'bg-blue-50/50' : ''}`}>
@@ -137,14 +137,29 @@ const AudienceList = () => {
     const audienceName = location.state?.audienceName || null;
 
     const fetchAudiences = async () => {
+        if (!adminToken) {
+            console.log("🚫 [AudienceList] fetchAudiences: No adminToken available");
+            setIsLoading(false);
+            return;
+        }
+
+        console.log("📡 [AudienceList] fetchAudiences: Triggering API call...");
         setIsLoading(true);
         try {
             const response = await Api.getAudiences(adminToken);
+            console.log("✅ [AudienceList] fetchAudiences: API Response received:", response);
+            
             if (response) {
-                setAudiences(Array.isArray(response) ? response : (response.data || response.results || []));
+                const audienceData = Array.isArray(response) ? response : (response.data || response.results || []);
+                console.log("📊 [AudienceList] fetchAudiences: Parsed audience count:", audienceData.length);
+                setAudiences(audienceData);
+            } else {
+                console.warn("⚠️ [AudienceList] fetchAudiences: Response was null or undefined");
+                setAudiences([]);
             }
         } catch (error) {
-            console.error("Error fetching audiences:", error);
+            console.error("❌ [AudienceList] Error fetching audiences:", error);
+            setAudiences([]);
         } finally {
             setIsLoading(false);
         }
@@ -215,12 +230,13 @@ const AudienceList = () => {
     };
 
     const filteredAudiences = useMemo(() => {
-        return (audiences || []).filter(aud => {
-            const matchesSearch = aud.audiance_name?.toLowerCase().includes(searchQuery.toLowerCase());
-            // Only show enriched audiences as requested
-            const tags = (aud.tag || '').toLowerCase();
-            return matchesSearch && tags.includes('enriched');
+        console.log("🔍 [AudienceList] Recalculating filteredAudiences. Total:", audiences.length);
+        const results = (audiences || []).filter(aud => {
+            const matchesSearch = (aud.audiance_name || '').toLowerCase().includes(searchQuery.toLowerCase());
+            return matchesSearch;
         });
+        console.log("🎯 [AudienceList] Filtered result count:", results.length);
+        return results;
     }, [audiences, searchQuery]);
 
     return (

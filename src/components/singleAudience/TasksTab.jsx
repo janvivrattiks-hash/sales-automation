@@ -1,6 +1,6 @@
-import React from 'react';
-import { Clock, Plus, Trash2, Bell } from 'lucide-react';
+import { Clock, Plus, Trash2, Bell, Pencil, AlertCircle } from 'lucide-react';
 import Button from '../ui/Button';
+import DeleteConfirmModal from '../ui/DeleteConfirmModal';
 
 const TasksTab = ({ 
     tasksList, 
@@ -17,8 +17,15 @@ const TasksTab = ({
     setTaskDescription, 
     isSubmitting, 
     handleAddTask,
+    openDeleteTaskModal,
+    confirmDeleteTask,
+    isDeleteTaskDialogOpen,
+    setIsDeleteTaskDialogOpen,
+    handleEditTask,
     handleTriggerReminders,
     isTriggeringReminders,
+    isEditingTask,
+    resetTaskForm,
 }) => {
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -102,7 +109,7 @@ const TasksTab = ({
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setIsAddingTask(false)}
+                                onClick={resetTaskForm}
                                 disabled={isSubmitting}
                             >
                                 Cancel
@@ -112,7 +119,7 @@ const TasksTab = ({
                                 size="sm"
                                 disabled={isSubmitting}
                             >
-                                {isSubmitting ? 'Creating...' : 'Create Task'}
+                                {isSubmitting ? (isEditingTask ? 'Updating...' : 'Creating...') : (isEditingTask ? 'Update Task' : 'Create Task')}
                             </Button>
                         </div>
                     </form>
@@ -132,6 +139,7 @@ const TasksTab = ({
                                 <th className="px-6 py-4">Description</th>
                                 <th className="px-6 py-4">Due Date</th>
                                 <th className="px-6 py-4">Status</th>
+                                <th className="px-6 py-4 text-center">Action</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -156,6 +164,24 @@ const TasksTab = ({
                                             {task.status}
                                         </span>
                                     </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex justify-center items-center gap-2">
+                                            <button 
+                                                onClick={() => handleEditTask(task)}
+                                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                title="Update Task"
+                                            >
+                                                <Pencil size={14} />
+                                            </button>
+                                            <button 
+                                                onClick={() => openDeleteTaskModal(task)}
+                                                className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                title="Delete Task"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -166,6 +192,15 @@ const TasksTab = ({
                     </div>
                 )}
             </div>
+
+            <DeleteConfirmModal 
+                isOpen={isDeleteTaskDialogOpen}
+                onClose={() => setIsDeleteTaskDialogOpen(false)}
+                onConfirm={confirmDeleteTask}
+                title="Delete Task?"
+                description="Are you sure you want to delete this task? This action cannot be undone and will permanently remove the task from your records."
+                isDeleting={isSubmitting}
+            />
         </div>
     );
 };

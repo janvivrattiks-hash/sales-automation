@@ -27,10 +27,11 @@ export const useBusinessInfo = () => {
     const [aiPreference, setAiPreference] = useState({
         tone: 'Friendly',
         toneDescription: 'Warm & Approachable',
-        personalizationLevel: 'Low',
-        levelValue: 1,
         instruction: "Your current AI settings will prioritize response speed while maintaining a professional yet approachable tone."
     });
+
+    const [products, setProducts] = useState([]);
+    const [isProductsLoading, setIsProductsLoading] = useState(false);
 
     const fetchAiData = async () => {
         if (!adminToken || !user?.id) return;
@@ -38,18 +39,9 @@ export const useBusinessInfo = () => {
             const res = await Api.getAiPreference(adminToken, user.id);
             if (res && res.data) {
                 const aiData = res.data;
-                let levelVal = 1;
-                const levelStr = (aiData.ai_personalise_level || aiData.personalization_level || '').toLowerCase();
-                
-                if (levelStr === 'medium') levelVal = 2;
-                else if (levelStr === 'high') levelVal = 3;
-                else if (levelStr === 'hyper') levelVal = 4;
-
                 setAiPreference({
                     tone: aiData.ai_tone_preference || 'Friendly',
                     toneDescription: aiData.ai_tone_description || 'Warm & Approachable',
-                    personalizationLevel: aiData.ai_personalise_level || aiData.personalization_level || 'Low',
-                    levelValue: levelVal,
                     instruction: aiData.ai_interaction_instruction || aiData.instruction || "Your current AI settings will prioritize response speed while maintaining a professional yet approachable tone."
                 });
             }
@@ -58,18 +50,56 @@ export const useBusinessInfo = () => {
         }
     };
 
-    const handleUpdateAiPreference = async (newData) => {
-        let levelVal = 1;
-        const levelStr = newData.personalizationLevel?.toLowerCase() || '';
-        if (levelStr === 'medium') levelVal = 2;
-        else if (levelStr === 'high') levelVal = 3;
-        else if (levelStr === 'hyper') levelVal = 4;
+    const fetchProducts = async () => {
+        if (!adminToken || !user?.id) return;
+        try {
+            setIsProductsLoading(true);
+            const res = await Api.getProducts(adminToken, user.id);
+            if (res && res.data) {
+                setProducts(res.data);
+            }
+        } catch (error) {
+            console.error("Fetch Products error:", error);
+        } finally {
+            setIsProductsLoading(false);
+        }
+    };
 
+    const handleAddProduct = async (product, links = [], file = null) => {
+        if (!adminToken) return;
+        
+        const res = await Api.addProducts(adminToken, [product], links, file);
+        if (res) {
+            await fetchProducts();
+            return true;
+        }
+        return false;
+    };
+
+    const handleUpdateProduct = async (oldName, updatedProduct) => {
+        if (!adminToken || !user?.id) return;
+        const res = await Api.updateProduct(adminToken, user.id, oldName, updatedProduct);
+        if (res) {
+            await fetchProducts();
+            return true;
+        }
+        return false;
+    };
+
+    const handleDeleteProduct = async (productName) => {
+        if (!adminToken || !user?.id) return;
+        const res = await Api.deleteProduct(adminToken, user.id, productName);
+        if (res) {
+            await fetchProducts();
+            return true;
+        }
+        return false;
+    };
+
+    const handleUpdateAiPreference = async (newData) => {
         setAiPreference(prev => ({
             ...prev,
             tone: newData.tone,
-            personalizationLevel: newData.personalizationLevel,
-            levelValue: levelVal
         }));
 
         // Re-fetch to get AI-generated descriptions/instructions if changed
@@ -131,23 +161,32 @@ export const useBusinessInfo = () => {
 
             try {
                 setIsLoading(true);
-                const [businessRes, aiRes, logoRes] = await Promise.all([
+                const [businessRes, aiRes, logoRes, productsRes] = await Promise.all([
                     Api.getBusinessInfo(adminToken, user.id),
                     Api.getAiPreference(adminToken, user.id),
-                    Api.getProfilePicture(user.id)
+                    Api.getProfilePicture(user.id),
+                    Api.getProducts(adminToken, user.id)
                 ]);
 
                 if (businessRes) {
                     const data = businessRes.data || businessRes;
+                    const phonePrefix = data.country_code || '+1';
+                    let phoneNumber = data.contact_number || '';
+                    
+                    // Strip prefix if already present in contact_number to avoid double display
+                    if (phoneNumber.startsWith(phonePrefix)) {
+                        phoneNumber = phoneNumber.slice(phonePrefix.length);
+                    }
+
                     setBusinessData(prev => ({
                         ...prev,
                         name: data.business_name || '',
                         fullName: data.full_name || '',
                         email: data.email || '',
-                        contact: data.contact_number || '',
+                        contact: phoneNumber ? `${phonePrefix} ${phoneNumber}` : '',
                         industry: data.business_industry || '',
                         website: data.website || '',
-                        location: data.location || 'N/A', // Using N/A if location is missing
+                        location: data.location || 'N/A',
                         description: data.business_description || '',
                     }));
                 }
@@ -161,20 +200,15 @@ export const useBusinessInfo = () => {
 
                 if (aiRes && aiRes.data) {
                     const aiData = aiRes.data;
-                    let levelVal = 1;
-                    const levelStr = (aiData.ai_personalise_level || aiData.personalization_level || '').toLowerCase();
-                    
-                    if (levelStr === 'medium') levelVal = 2;
-                    else if (levelStr === 'high') levelVal = 3;
-                    else if (levelStr === 'hyper') levelVal = 4;
-
                     setAiPreference({
                         tone: aiData.ai_tone_preference || 'Friendly',
                         toneDescription: aiData.ai_tone_description || 'Warm & Approachable',
-                        personalizationLevel: aiData.ai_personalise_level || aiData.personalization_level || 'Low',
-                        levelValue: levelVal,
                         instruction: aiData.ai_interaction_instruction || aiData.instruction || "Your current AI settings will prioritize response speed while maintaining a professional yet approachable tone."
                     });
+                }
+
+                if (productsRes && productsRes.data) {
+                    setProducts(productsRes.data);
                 }
             } catch (error) {
                 console.error("Fetch error:", error);
@@ -189,10 +223,16 @@ export const useBusinessInfo = () => {
     return {
         businessData,
         aiPreference,
+        products,
+        isProductsLoading,
         isLoading,
         isUploadingLogo,
         fileInputRef,
         handleLogoChange,
-        handleUpdateAiPreference
+        handleUpdateAiPreference,
+        handleAddProduct,
+        handleUpdateProduct,
+        handleDeleteProduct,
+        fetchProducts
     };
 };

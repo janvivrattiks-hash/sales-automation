@@ -24,6 +24,7 @@ import CreateICP from './pages/CreateICP';
 import ICPDetails from './pages/ICPDetails';
 import EditBusinessInfo from './pages/EditBusinessInfo';
 import ScrollToTop from './utils/ScrollToTop';
+import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 // Simple placeholder components
@@ -47,12 +48,14 @@ const App = () => {
     console.log('Logged out successfully');
 
     // Navigate to login page
+    setAdminToken(null);
     navigate('/');
   };
 
   return (
     <>
       <ScrollToTop />
+      <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/signup" element={<Signup />} />

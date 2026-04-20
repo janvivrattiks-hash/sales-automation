@@ -105,7 +105,10 @@ export const useEditBusinessInfo = () => {
             const payload = {
                 business_name: formData.businessName,
                 full_name: formData.fullName,
-                contact_number: `${formData.phonePrefix}${formData.phone}`.replace(/\s+/g, ''),
+                contact_number: formData.phone.startsWith(formData.phonePrefix) 
+                    ? formData.phone.replace(/\s+/g, '') 
+                    : (formData.phonePrefix + formData.phone).replace(/\s+/g, ''),
+                country_code: formData.phonePrefix,
                 email: formData.email,
                 website: formData.website,
                 location: formData.location,
@@ -144,13 +147,21 @@ export const useEditBusinessInfo = () => {
 
                 if (infoData) {
                     const data = infoData.data || infoData;
+                    const phonePrefix = data.country_code || '+1';
+                    let phoneNumber = data.contact_number || '';
+                    
+                    // If the phone number starts with the prefix, strip it for display
+                    if (phoneNumber.startsWith(phonePrefix)) {
+                        phoneNumber = phoneNumber.slice(phonePrefix.length);
+                    }
+
                     setFormData(prev => ({
                         ...prev,
                         businessName: data.business_name || '',
                         fullName: data.full_name || '',
                         email: data.email || '',
-                        phone: data.contact_number || '',
-                        phonePrefix: '+1',
+                        phone: phoneNumber,
+                        phonePrefix: phonePrefix,
                         website: data.website || '',
                         industry: data.business_industry || 'Software & Technology',
                         location: data.location || '',

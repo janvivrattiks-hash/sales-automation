@@ -2,6 +2,7 @@ import React from 'react';
 import { Building2, User, AtSign, ChevronDown, Globe, Briefcase, MapPin } from 'lucide-react';
 import FormField from './FormField';
 import Button from '../ui/Button';
+import { countryCodesList } from '../../utils/countryCodes';
 
 const BusinessForm = ({ formData, isSubmitting, onChange, onCancel, onSubmit }) => (
     <div className="p-12 border-t border-gray-50 space-y-10">
@@ -39,17 +40,22 @@ const BusinessForm = ({ formData, isSubmitting, onChange, onCancel, onSubmit }) 
             {/* Contact Number */}
             <FormField label="Contact Number">
                 <div className="flex gap-2">
-                    <div className="relative shrink-0">
+                    <div className="relative shrink-0 group min-w-[80px]">
                         <select
                             name="phonePrefix"
                             value={formData.phonePrefix}
                             onChange={onChange}
-                            className="appearance-none pl-4 pr-10 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-black text-gray-900 focus:bg-white focus:border-primary/20 transition-all outline-none cursor-pointer"
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                         >
-                            <option value="+1">+1</option>
-                            <option value="+44">+44</option>
-                            <option value="+91">+91</option>
+                            {countryCodesList.map((country, index) => (
+                                <option key={index} value={country.code}>
+                                    {country.code} ({country.name})
+                                </option>
+                            ))}
                         </select>
+                        <div className="pl-4 pr-10 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-black text-gray-900 group-focus-within:bg-white group-focus-within:border-primary/20 group-focus-within:ring-4 group-focus-within:ring-primary/5 transition-all flex items-center justify-center h-full pointer-events-none">
+                            {formData.phonePrefix || '+1'}
+                        </div>
                         <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>
                     <div className="relative grow group">
@@ -58,6 +64,7 @@ const BusinessForm = ({ formData, isSubmitting, onChange, onCancel, onSubmit }) 
                             value={formData.phone}
                             onChange={onChange}
                             className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-gray-900 focus:bg-white focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all outline-none"
+                            placeholder="10 Digits Mobile Number"
                         />
                     </div>
                 </div>

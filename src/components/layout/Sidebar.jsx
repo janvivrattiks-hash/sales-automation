@@ -59,14 +59,18 @@ const Sidebar = () => {
                         return (
                             <NavLink
                                 key={item.path}
-                                to={item.path}
-                                onClick={() => {
+                                to={item.name === 'ICPs' ? '#' : item.path}
+                                onClick={(e) => {
+                                    if (item.name === 'ICPs') {
+                                        e.preventDefault();
+                                        return;
+                                    }
                                     // Close sidebar on mobile when a link is clicked
                                     if (window.innerWidth < 768) {
                                         setSidebarOpen(false);
                                     }
                                 }}
-                                className={`flex items-center gap-4 p-3 rounded-lg transition-all duration-300 ${isActive
+                                className={`flex items-center gap-4 p-3 rounded-lg transition-all duration-300 ${item.name === 'ICPs' ? 'opacity-70 cursor-not-allowed' : ''} ${isActive
                                     ? 'bg-primary text-white shadow-lg shadow-primary/20'
                                     : 'text-gray-500 hover:bg-gray-50'
                                     }`}

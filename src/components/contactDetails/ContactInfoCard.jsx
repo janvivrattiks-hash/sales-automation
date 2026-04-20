@@ -5,12 +5,30 @@ import InfoRow from './InfoRow';
 import StarRating from '../ui/StarRating';
 import { getHostname } from '../../utils/contactUtils';
 
-const ContactInfoCard = ({ businessName, phoneStr, emailsList, primaryEmail, addressStr, websiteStr, extractedSocials, ownerName, reviewsRaw, ratingVal }) => {
+const ContactInfoCard = ({ businessName, phoneStr, emailsList, primaryEmail, addressStr, websiteStr, extractedSocials, ownerName, reviewsRaw, ratingVal, allPhones = [] }) => {
     return (
         <Card title="Business Information" subtitle="Full details for this contact">
             <div className="mt-2 text-sm">
                 <InfoRow icon={Tag} label="Business Name" value={businessName} />
-                <InfoRow icon={Phone} label="Contact Mobile" value={phoneStr} />
+                <div className="flex items-start gap-4 py-4 border-b border-gray-100 last:border-0">
+                    <div className="mt-0.5 p-2 bg-primary/5 rounded-lg text-primary shrink-0">
+                        <Phone size={16} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Contact Mobile</p>
+                        {allPhones.length > 0 ? (
+                            <div className="flex flex-col gap-1">
+                                {allPhones.map((p, idx) => (
+                                    <a key={idx} href={`tel:${p}`} className="text-sm font-medium text-primary hover:underline block truncate">
+                                        {p}
+                                    </a>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm font-medium text-gray-800">{phoneStr || '—'}</p>
+                        )}
+                    </div>
+                </div>
                 <InfoRow
                     icon={Mail}
                     label="Email Address"

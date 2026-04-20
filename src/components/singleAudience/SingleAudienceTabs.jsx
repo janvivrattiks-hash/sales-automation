@@ -3,7 +3,7 @@ import Card from '../ui/Card';
 
 const SingleAudienceTabs = ({ tabs, activeTab, setActiveTab, children }) => {
     return (
-        <Card noPadding className="h-full border-gray-100 shadow-lg shadow-gray-200/40 flex flex-col">
+        <Card noPadding className="border-gray-100 shadow-lg shadow-gray-200/40 flex flex-col">
             {/* Tab Headers */}
             <div className="flex overflow-x-auto border-b border-gray-100 no-scrollbar">
                 {tabs.map(tab => (

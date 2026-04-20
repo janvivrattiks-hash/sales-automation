@@ -15,12 +15,12 @@ import ReviewLeadsHeader from '../components/reviewLeads/ReviewLeadsHeader';
 import ReviewLeadsStats from '../components/reviewLeads/ReviewLeadsStats';
 import ReviewLeadsFilters from '../components/reviewLeads/ReviewLeadsFilters';
 import ReviewLeadsTable from '../components/reviewLeads/ReviewLeadsTable';
-import EnrichingOverlay from '../components/reviewLeads/EnrichingOverlay';
+import EnrichmentProgressModal from '../components/reviewLeads/EnrichmentProgressModal';
 
 const ReviewLeads = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { leads, adminToken } = useContext(AppContext);
+    const { leads, adminToken, user } = useContext(AppContext);
     
     // State
     const [searchTerm, setSearchTerm] = useState('');
@@ -30,6 +30,7 @@ const ReviewLeads = () => {
     const [isEnriching, setIsEnriching] = useState(false);
     const [selectedLeads, setSelectedLeads] = useState([]);
     const [originalLeads, setOriginalLeads] = useState([]);
+    const [leadsToEnrich, setLeadsToEnrich] = useState([]);
     const loadingLeadIdRef = useRef(null); // Synchronous ref to prevent concurrent calls
     
     const itemsPerPage = 5;
@@ -187,27 +188,23 @@ const ReviewLeads = () => {
             return;
         }
 
-        setIsEnriching(true);
         try {
-            const enrichedResults = await Api.enrichLeads(leadsToPass, adminToken);
-            if (enrichedResults) {
-                navigate("/final-leads", {
-                    state: {
-                        results: enrichedResults,
-                        queryInfo
-                    }
-                });
-            }
+            // Trigger enrichment (starts the background tasks)
+            Api.enrichLeads(leadsToPass, adminToken); // Fire and forget, we'll listen on the next page
+            
+            navigate("/final-leads", {
+                state: {
+                    leadsToEnrich: leadsToPass,
+                    queryInfo
+                }
+            });
         } catch (error) {
             console.error("Enrich API Error:", error);
-        } finally {
-            setIsEnriching(false);
         }
     };
 
     return (
         <div className="animate-in fade-in duration-700 space-y-8 pb-10">
-            {isEnriching && <EnrichingOverlay />}
 
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>

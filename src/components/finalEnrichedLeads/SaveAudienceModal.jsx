@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ChevronDown } from 'lucide-react';
+import { X } from 'lucide-react';
 import Modal from '../ui/Modal';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
@@ -47,27 +47,6 @@ const SaveAudienceModal = ({ isOpen, onClose, audienceData, setAudienceData, uiT
                         value={audienceData.discription}
                         onChange={(e) => setAudienceData(prev => ({ ...prev, discription: e.target.value }))}
                     />
-                </div>
-
-                {/* ICP Selector */}
-                <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-900 flex items-center gap-1">
-                        Select ICP to be matched <span className="text-gray-400 font-medium">(Optional)</span>
-                    </label>
-                    <div className="relative">
-                        <select
-                            className="w-full h-12 px-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/10 appearance-none cursor-pointer"
-                            value={audienceData.icp}
-                            onChange={(e) => setAudienceData(prev => ({ ...prev, icp: e.target.value }))}
-                        >
-                            <option value="" disabled>Select an Ideal Customer Profile...</option>
-                            <option value="surat-cafes">Surat Cafes</option>
-                            <option value="retailers">Retailers India</option>
-                        </select>
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                            <ChevronDown size={18} />
-                        </div>
-                    </div>
                 </div>
 
                 {/* Tags */}

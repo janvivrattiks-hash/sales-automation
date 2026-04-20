@@ -24,8 +24,10 @@ import TasksTab from '../components/singleAudience/TasksTab';
 
 // Hooks
 import useSingleAudience from '../hooks/useSingleAudience.jsx';
+import { useApp } from '../context/AppContext';
 
 const SingleAudienceView = () => {
+    const { user } = useApp();
     const location = useLocation();
     // AudienceDetails navigates with { singleLead, audience } — support both keys
     const leadData = location.state?.singleLead || location.state?.leadData || null;
@@ -66,9 +68,16 @@ const SingleAudienceView = () => {
         handleTriggerReminders,
         isTriggeringReminders,
         handleAddTask,
+        openDeleteTaskModal,
+        confirmDeleteTask,
+        isDeleteTaskDialogOpen,
+        setIsDeleteTaskDialogOpen,
+        handleEditTask,
+        resetTaskForm,
         handleDeleteLead,
         getHostname,
-        derivedData
+        derivedData,
+        isEditingTask
     } = useSingleAudience(leadId, leadData, audienceData);
 
     const renderSocialIcon = (url) => {
@@ -85,7 +94,7 @@ const SingleAudienceView = () => {
     const tabs = [
         { id: 'summary', label: 'Summary' },
         { id: 'messages', label: 'Message & Strategy' },
-        { id: 'activity', label: 'Activity' },
+        { id: 'activity', label: 'Outreach Activity' },
         { id: 'notes', label: 'Notes & Comments' },
         { id: 'tasks', label: 'Tasks & Actions' },
     ];
@@ -146,7 +155,7 @@ const SingleAudienceView = () => {
                     </div>
 
                     {/* Right Column: Dynamic Content Tabs */}
-                    <div className="lg:col-span-9 h-[calc(100vh-250px)] min-h-[600px]">
+                    <div className="lg:col-span-9">
                         <SingleAudienceTabs
                             tabs={tabs}
                             activeTab={activeTab}
@@ -172,6 +181,8 @@ const SingleAudienceView = () => {
                                     businessName={derivedData.businessName}
                                     emailsArray={derivedData.emailsArray}
                                     phoneStr={derivedData.phoneStr}
+                                    businessId={leadId}
+                                    adminEmail={user?.email}
                                 />
                             )}
 
@@ -179,6 +190,7 @@ const SingleAudienceView = () => {
                                 <ActivityTab
                                     activityLogs={activityLogs}
                                     isLoadingActivity={isLoadingActivity}
+                                    leadId={leadId}
                                 />
                             )}
 
@@ -217,8 +229,15 @@ const SingleAudienceView = () => {
                                     setTaskDescription={setTaskDescription}
                                     isSubmitting={isSubmitting}
                                     handleAddTask={handleAddTask}
+                                    openDeleteTaskModal={openDeleteTaskModal}
+                                    confirmDeleteTask={confirmDeleteTask}
+                                    isDeleteTaskDialogOpen={isDeleteTaskDialogOpen}
+                                    setIsDeleteTaskDialogOpen={setIsDeleteTaskDialogOpen}
+                                    handleEditTask={handleEditTask}
                                     handleTriggerReminders={handleTriggerReminders}
                                     isTriggeringReminders={isTriggeringReminders}
+                                    isEditingTask={isEditingTask}
+                                    resetTaskForm={resetTaskForm}
                                 />
                             )}
                         </SingleAudienceTabs>

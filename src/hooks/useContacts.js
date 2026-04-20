@@ -29,7 +29,7 @@ export const useContacts = (navigate) => {
         website: 'Any',
         ratings: 0,
         category: '',
-        parameter: ''
+        reviews: ''
     });
     const [audienceData, setAudienceData] = useState({
         audiance_name: '',
@@ -127,10 +127,15 @@ export const useContacts = (navigate) => {
 
     const fetchAudiences = useCallback(async () => {
         if (!adminToken) return;
+        console.log("📡 [useContacts] fetchAudiences: Triggering API call...");
         setAudLoading(true);
         try {
             const audienceList = await Api.getAudiences(adminToken);
-            if (audienceList) setAudiences(audienceList);
+            console.log("✅ [useContacts] fetchAudiences: Response received:", audienceList);
+            if (audienceList) {
+                const data = Array.isArray(audienceList) ? audienceList : (audienceList.data || audienceList.results || []);
+                setAudiences(data);
+            }
         } catch (err) {
             console.error("Failed to fetch audiences:", err);
         } finally {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronRight, Trash2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Card from '../ui/Card';
 import DeleteConfirmModal from '../ui/DeleteConfirmModal';
 
@@ -16,6 +16,7 @@ const SingleAudienceHeader = ({
     onDelete
 }) => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
@@ -35,7 +36,18 @@ const SingleAudienceHeader = ({
                 <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">
                     <button onClick={() => navigate('/audience-list')} className="hover:text-primary transition-colors">Audience List</button>
                     <ChevronRight size={10} />
-                    <button onClick={() => navigate(-1)} className="hover:text-primary transition-colors">{fromTab === 'enriched' ? 'Contacts' : 'Audience Details'}</button>
+                    <button 
+                        onClick={() => {
+                            if (location.state?.backUrl) {
+                                navigate(location.state.backUrl, { state: { ...location.state, selectedLead: null, singleLead: null } });
+                            } else {
+                                navigate(-1);
+                            }
+                        }} 
+                        className="hover:text-primary transition-colors"
+                    >
+                        {fromTab === 'enriched' ? 'Contacts' : 'Audience Details'}
+                    </button>
                     <ChevronRight size={10} />
                     <span className="text-gray-900">Single Audience View</span>
                 </div>
@@ -70,7 +82,7 @@ const SingleAudienceHeader = ({
                         </button>
                     </div>
 
-                    <div className="mt-8 pt-6 border-t border-gray-100 grid grid-cols-2 md:grid-cols-4 gap-6">
+                    <div className="mt-8 pt-6 border-t border-gray-100 grid grid-cols-2 md:grid-cols-3 gap-6">
                         <div>
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Audience Name</p>
                             <p className="text-lg font-bold text-gray-900">{audienceName}</p>
@@ -78,12 +90,6 @@ const SingleAudienceHeader = ({
                         <div>
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Business Category</p>
                             <p className="text-lg font-bold text-gray-900">{category}</p>
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">ICP Score</p>
-                            <div className="flex items-center gap-3">
-                                <span className="text-2xl font-black text-gray-900">{icpScore}</span>
-                            </div>
                         </div>
                         <div>
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Lead Stage</p>

@@ -9,7 +9,7 @@ export const AppProvider = ({ children }) => {
     const [loading, setLoading] = useState(false);
     const [theme, setTheme] = useState('light');
     const [sidebarOpen, setSidebarOpen] = useState(true);
-    const [adminToken, setAdminToken] = useState(null);
+    const [adminToken, setAdminToken] = useState(localStorage.getItem('admin_token') || null);
     const [leads, setLeads] = useState([]);
 
 
@@ -33,14 +33,6 @@ export const AppProvider = ({ children }) => {
         }
     };
 
-
-    // Load tokens on mount
-    useEffect(() => {
-        const savedAdminToken = localStorage.getItem('admin_token');
-
-
-        setAdminToken(savedAdminToken || null);
-    }, []);
 
     // Fetch current user when token is available
     useEffect(() => {
@@ -83,12 +75,6 @@ export const AppProvider = ({ children }) => {
         }
     }, []);
 
-    // Mock notifications
-    const [notifications, setNotifications] = useState([
-        { id: 1, text: 'New lead assigned to you', time: '2 mins ago', unread: true },
-        { id: 2, text: 'Search results for "SaaS Founders" ready', time: '1 hour ago', unread: false },
-    ]);
-
     const value = {
         user,
         loading,
@@ -97,8 +83,6 @@ export const AppProvider = ({ children }) => {
         setTheme,
         sidebarOpen,
         setSidebarOpen,
-        notifications,
-        setNotifications,
     };
 
     const contextValue = {

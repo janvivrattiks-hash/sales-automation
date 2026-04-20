@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Button = ({ children, variant = 'primary', className = '', ...props }) => {
+const Button = ({ children, variant = 'primary', className = '', isLoading, size, ...props }) => {
     const baseStyles = 'px-6 h-11 rounded-xl font-bold transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed';
 
     const variants = {
@@ -12,8 +12,16 @@ const Button = ({ children, variant = 'primary', className = '', ...props }) => 
     };
 
     return (
-        <button className={`${baseStyles} ${variants[variant]} ${className}`} {...props}>
-            {children}
+        <button 
+            className={`${baseStyles} ${variants[variant]} ${className}`} 
+            disabled={isLoading || props.disabled}
+            {...props}
+        >
+            {isLoading ? (
+                <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : (
+                children
+            )}
         </button>
     );
 };

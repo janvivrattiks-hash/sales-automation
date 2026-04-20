@@ -19,7 +19,7 @@ const AiPreferenceCard = ({ aiPreference, onEdit }) => (
         </div>
 
         <div className="p-10 space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6">
                 {/* AI Tone Card */}
                 <div className="p-8 bg-gray-50/50 rounded-3xl border border-transparent hover:border-violet-100 transition-all group">
                     <div className="flex items-center gap-6">
@@ -32,31 +32,6 @@ const AiPreferenceCard = ({ aiPreference, onEdit }) => (
                                 <p className="text-xl font-black text-gray-900">{aiPreference.tone}</p>
                                 <div className="w-1.5 h-1.5 rounded-full bg-violet-200" />
                                 <p className="text-xs font-bold text-gray-400">{aiPreference.toneDescription}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* AI Personalization Card */}
-                <div className="p-8 bg-gray-50/50 rounded-3xl border border-transparent hover:border-violet-100 transition-all group">
-                    <div className="flex items-center gap-6">
-                        <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-violet-500 group-hover:scale-110 transition-transform">
-                            <Sliders size={22} />
-                        </div>
-                        <div className="space-y-2 grow">
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">AI Personalization Level</p>
-                            <div className="flex items-end justify-between">
-                                <p className="text-xl font-black text-gray-900">{aiPreference.personalizationLevel}</p>
-                                <div className="flex gap-1 mb-1">
-                                    {[1, 2, 3, 4].map((dot) => (
-                                        <div 
-                                            key={dot}
-                                            className={`w-6 h-1.5 rounded-full transition-all duration-500 ${
-                                                dot <= aiPreference.levelValue ? 'bg-violet-500' : 'bg-gray-200'
-                                            }`} 
-                                        />
-                                    ))}
-                                </div>
                             </div>
                         </div>
                     </div>
