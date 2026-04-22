@@ -1,285 +1,406 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-    ChevronRight,
-    Filter,
-    Download,
-    Eye,
-    Trash2,
-    Star,
-    ChevronLeft,
-    Search,
-    ChevronRight as ChevronRightIcon,
-    ArrowRight,
-    Plus,
-    X
-} from 'lucide-react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ChevronRight, Search } from 'lucide-react';
 import Button from '../components/ui/Button';
-import Card from '../components/ui/Card';
-import Modal from '../components/ui/Modal';
-import Pagination from '../components/ui/Pagination';
+import { AppContext } from '../context/AppContext';
+import Api from '../../scripts/Api';
+import { hasRealOwnerName, deepGet } from '../utils/contactUtils';
+
+// Modular Components
+import EnrichLeadsHeader from '../components/enrichLeads/EnrichLeadsHeader';
+import FilterModal from '../components/enrichLeads/FilterModal';
+import EnrichLeadsTable from '../components/enrichLeads/EnrichLeadsTable';
+import DeleteConfirmModal from '../components/ui/DeleteConfirmModal';
 
 const EnrichLeads = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const { adminToken } = useContext(AppContext);
+
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-    const [filters, setFilters] = useState({
-        parameter: ''
+    const [leadData, setLeadData] = useState(() => {
+        const results = location.state?.results;
+        if (!results) return null;
+        
+        const leadsArray = Array.isArray(results) 
+            ? results 
+            : (results.leads || results.data || results.results || []);
+            
+        return {
+            leads: leadsArray,
+            ...location.state.queryInfo,
+            ...(typeof results === 'object' && !Array.isArray(results) ? results : {})
+        };
     });
-    const [currentPage, setCurrentPage] = useState(1);
+
+    const [filters, setFilters] = useState(() => {
+        const savedDraft = localStorage.getItem('lead_gen_draft_filters');
+        if (savedDraft) {
+            try {
+                const parsed = JSON.parse(savedDraft);
+                return { ...parsed, ...location.state?.filters };
+            } catch (e) {
+                console.error("Failed to parse saved filters", e);
+            }
+        }
+        return location.state?.filters || {
+            website: 'Any',
+            minRating: '',
+            category: '',
+            reviews: '',
+        };
+    });
+
+    // Save filter drafts whenever they change
+    useEffect(() => {
+        localStorage.setItem('lead_gen_draft_filters', JSON.stringify(filters));
+    }, [filters]);
+
+
+    const [selectedLeads, setSelectedLeads] = useState(location.state?.selectedLeads || []);
+    const [currentPage, setCurrentPage] = useState(location.state?.currentPage || 1);
+    const [searchTerm, setSearchTerm] = useState(location.state?.searchTerm || '');
+    const [originalLeads, setOriginalLeads] = useState(() => {
+        const results = location.state?.results;
+        if (!results) return [];
+        return Array.isArray(results) 
+            ? results 
+            : (results.leads || results.data || results.results || []);
+    });
+
+    const [isFiltering, setIsFiltering] = useState(false);
+    const [filteredLeads, setFilteredLeads] = useState(location.state?.filteredLeads || []);
+    const [isFiltered, setIsFiltered] = useState(location.state?.isFiltered || false);
+    
+    // Deletion State
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [leadToDelete, setLeadToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [processingLeadId, setProcessingLeadId] = useState(null);
+
     const itemsPerPage = 5;
 
-    const leads = [
-        {
-            id: 1,
-            initials: 'TS',
-            initialsColor: 'bg-blue-50 text-blue-500',
-            name: 'TechFlow Solutions',
-            location: 'San Francisco, CA',
-            mobile: '+1 (555) 123-4567',
-            email: 'contact@techflow.com',
-            rating: 4,
-            status: 'Enriched',
-            statusColor: 'bg-green-50 text-green-500'
-        },
-        {
-            id: 2,
-            initials: 'NR',
-            initialsColor: 'bg-purple-50 text-purple-500',
-            name: 'Nexus Retail',
-            location: 'Austin, TX',
-            mobile: '+1 (555) 987-6543',
-            email: 'info@nexus.com',
-            rating: 3,
-            status: 'Pending',
-            statusColor: 'bg-orange-50 text-orange-500'
-        },
-        {
-            id: 3,
-            initials: 'AI',
-            initialsColor: 'bg-cyan-50 text-cyan-500',
-            name: 'Apex Innovations',
-            location: 'New York, NY',
-            mobile: '+1 (555) 456-7890',
-            email: 'sales@apex.com',
-            rating: 5,
-            status: 'Enriched',
-            statusColor: 'bg-green-50 text-green-500'
+    useEffect(() => {
+        console.log("📍 [EnrichLeads] Received location state:", location.state);
+        console.log("📊 [EnrichLeads] leadData state:", leadData);
+        
+        // Sync niche to category filter if coming from generic navigation
+        if (location.state?.queryInfo?.niche && !location.state?.filters) {
+            setFilters(prev => ({ ...prev, category: location.state.queryInfo.niche }));
         }
-    ];
+    }, [location.state, leadData]);
 
-    const RatingStars = ({ count }) => {
-        return (
-            <div className="flex gap-0.5">
-                {[...Array(5)].map((_, i) => (
-                    <Star
-                        key={i}
-                        size={14}
-                        className={i < count ? "fill-orange-400 text-orange-400" : "text-gray-200"}
-                    />
-                ))}
-            </div>
+    // Synchronize local state with history state for robust back-navigation preservation
+    useEffect(() => {
+        const historyPage = location.state?.currentPage;
+        const historySelectedCount = location.state?.selectedLeads?.length || 0;
+        const historySearch = location.state?.searchTerm;
+        
+        const needsSync = (currentPage !== historyPage) || 
+                          (selectedLeads.length !== historySelectedCount) ||
+                          (searchTerm !== historySearch);
+
+        if (needsSync) {
+            console.log("🔄 [EnrichLeads] Syncing pagination/selection to history:", { currentPage, selectedLeads: selectedLeads.length });
+            navigate(location.pathname, {
+                replace: true,
+                state: {
+                    ...location.state,
+                    currentPage,
+                    selectedLeads,
+                    searchTerm
+                }
+            });
+        }
+    }, [currentPage, selectedLeads, searchTerm, location.pathname, location.state, navigate]);
+
+    const handleFilter = async () => {
+        setIsFiltering(true);
+        // Robust Job ID extraction
+        const jobId = leadData?.job_id || 
+                      location.state?.queryInfo?.job_id || 
+                      location.state?.job_id;
+        
+        console.log("🔍 [EnrichLeads] Attempting filter with Job ID:", jobId);
+        
+        if (!jobId) {
+            console.error("❌ No Job ID found for filtering. State keys:", Object.keys(location.state || {}), "leadData keys:", Object.keys(leadData || {}));
+            setIsFiltering(false);
+            return;
+        }
+
+        const filterParams = {
+            website: filters.website || 'Any',
+            ratings: filters.ratings || filters.minRating || 0,
+            reviews: filters.reviews || 0,
+            category: filters.category || ''
+        };
+
+        try {
+            // Use the new job-specific filter API
+            const response = await Api.filterByJob(jobId, filterParams, adminToken);
+            let filteredData = [];
+
+            if (Array.isArray(response)) {
+                filteredData = response;
+            } else if (response && typeof response === 'object') {
+                if (Array.isArray(response.data)) filteredData = response.data;
+                else if (Array.isArray(response.results)) filteredData = response.results;
+                else if (Array.isArray(response.leads)) filteredData = response.leads;
+                else {
+                    const possibleArrays = Object.values(response).filter(Array.isArray);
+                    if (possibleArrays.length > 0) {
+                        filteredData = possibleArrays.sort((a, b) => b.length - a.length)[0];
+                    }
+                }
+            }
+
+            console.log("✅ Filtered Results:", filteredData);
+            
+            // Automatically navigate to Review page after filtering
+            navigate('/review-leads', {
+                state: {
+                    results: filteredData,
+                    queryInfo: { 
+                        niche: queryValue, 
+                        city: cityValue, 
+                        area: areaValue,
+                        ...leadData,
+                        job_id: jobId 
+                    },
+                    filters: filterParams,
+                    isFiltered: true,
+                    filteredLeads: filteredData
+                }
+            });
+
+            // Track as Pending Job
+            const pendingJobs = JSON.parse(localStorage.getItem('lead_gen_pending_jobs') || '[]');
+            const newPendingJob = {
+                job_id: jobId,
+                filters: filterParams,
+                queryInfo: { niche: queryValue, city: cityValue, area: areaValue, ...leadData },
+                timestamp: new Date().toISOString()
+            };
+            
+            // Avoid duplicates
+            const filteredPending = pendingJobs.filter(j => j.job_id !== jobId);
+            localStorage.setItem('lead_gen_pending_jobs', JSON.stringify([...filteredPending, newPendingJob]));
+
+        } catch (error) {
+            console.error("Filter failed:", error);
+        } finally {
+            setIsFiltering(false);
+        }
+    };
+
+    const toggleLeadSelection = (leadId) => {
+        setSelectedLeads(prev =>
+            prev.includes(leadId) ? prev.filter(id => id !== leadId) : [...prev, leadId]
         );
     };
+
+    const toggleSelectAll = () => {
+        const currentLeadIds = currentLeads.map(l => l.id || l.MobileNumber || l.result_id || l.business_information_id);
+        const allSelected = currentLeadIds.every(id => selectedLeads.includes(id));
+        if (allSelected) {
+            setSelectedLeads(prev => prev.filter(id => !currentLeadIds.includes(id)));
+        } else {
+            setSelectedLeads(prev => [...new Set([...prev, ...currentLeadIds])]);
+        }
+    };
+
+    // Derived state
+    const queryValue = leadData?.niche || 'N/A';
+    const cityValue = leadData?.city || 'N/A';
+    const areaValue = leadData?.area || 'N/A';
+
+    const baseLeads = isFiltered ? filteredLeads : originalLeads;
+
+    const leads = baseLeads.filter(lead => {
+        if (!lead) return false;
+        const name = (lead.name || lead.BusinessName || '').toLowerCase();
+        const email = (lead.email || '').toLowerCase();
+        const search = searchTerm.toLowerCase();
+        return name.includes(search) || email.includes(search);
+    });
 
     const startIndex = (currentPage - 1) * itemsPerPage;
     const currentLeads = leads.slice(startIndex, startIndex + itemsPerPage);
 
+    const handleViewLead = useCallback(async (lead) => {
+        if (!lead) return;
+
+        // Extract ID
+        const leadId = deepGet(lead, ['id', 'result_id', 'business_information_id', 'lead_id', 'search_id']);
+        
+        const navigationState = {
+            ...location.state,
+            results: originalLeads,
+            queryInfo: { niche: queryValue, city: cityValue, area: areaValue },
+            currentPage: currentPage,
+            selectedLeads: selectedLeads,
+            filters: filters,
+            isFiltered: isFiltered,
+            filteredLeads: filteredLeads,
+            searchTerm: searchTerm,
+            backUrl: '/enrich'
+        };
+
+        // CASE 1: Already has owner info — navigate directly
+        if (hasRealOwnerName(lead)) {
+            navigate('/lead-details', { 
+                state: { ...navigationState, selectedLead: lead } 
+            });
+            return;
+        }
+
+        // CASE 2: No ID — cannot fetch fresh data
+        if (!leadId) {
+            navigate('/lead-details', { 
+                state: { ...navigationState, singleLead: lead } 
+            });
+            return;
+        }
+
+        // CASE 3: Fetch fresh data
+        try {
+            setProcessingLeadId(leadId);
+            const freshData = await Api.getLeadById(leadId, adminToken, true);
+            const unwrappedData = freshData?.data || freshData;
+
+            if (unwrappedData) {
+                navigate('/lead-details', { 
+                    state: { ...navigationState, selectedLead: { ...lead, ...unwrappedData } } 
+                });
+            } else {
+                navigate('/lead-details', { 
+                    state: { ...navigationState, singleLead: lead } 
+                });
+            }
+        } catch (error) {
+            console.error("Failed to fetch fresh lead data:", error);
+            navigate('/lead-details', { 
+                state: { ...navigationState, singleLead: lead } 
+            });
+        } finally {
+            setProcessingLeadId(null);
+        }
+    }, [adminToken, originalLeads, queryValue, cityValue, areaValue, currentPage, selectedLeads, filters, isFiltered, filteredLeads, searchTerm, navigate]);
+
+    const handleConfirmDelete = async () => {
+        if (!leadToDelete) return;
+        setIsDeleting(true);
+        try {
+            const success = await Api.deleteLead(leadToDelete, adminToken);
+            if (success) {
+                // Update local state by filtering out the deleted lead
+                setOriginalLeads(prev => prev.filter(l => (l.id || l.MobileNumber || l.result_id || l.business_information_id) !== leadToDelete));
+                setIsDeleteModalOpen(false);
+                setLeadToDelete(null);
+            }
+        } catch (error) {
+            console.error("Delete failed:", error);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const handleDeleteClick = (id) => {
+        setLeadToDelete(id);
+        setIsDeleteModalOpen(true);
+    };
+
+    // Deletion State
+
+    // Empty state
+    if (!leadData) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 space-y-6 py-20">
+                <div className="bg-gray-50 p-6 rounded-full">
+                    <Search size={48} className="text-gray-300" />
+                </div>
+                <div className="text-center">
+                    <p className="text-lg font-bold text-gray-900">No Lead Data Found</p>
+                    <p className="text-sm text-gray-500 mt-1">Please generate leads from the generator page first.</p>
+                </div>
+                <Button onClick={() => navigate('/lead-generator')} className="px-8">
+                    Go to Generator
+                </Button>
+            </div>
+        );
+    }
+
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-10">
-            {/* Breadcrumbs */}
-            <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">
-                <span>LEAD GENERATION</span>
-                <ChevronRight size={10} />
-                <span className="text-gray-900">ENRICH</span>
-            </div>
+            <EnrichLeadsHeader
+                queryValue={queryValue}
+                cityValue={cityValue}
+                areaValue={areaValue}
+                leads={leads}
+                navigate={navigate}
+                onFilterOpen={() => setIsFilterModalOpen(true)}
+                location={location}
+            />
 
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Enrich Leads</h1>
-                    <p className="text-gray-500 text-sm mt-1">Review and verify lead data before exporting to CRM.</p>
-                </div>
-                <div className="flex gap-3">
-                    <Button variant="outline" onClick={() => setIsFilterModalOpen(true)}>
-                        <Filter size={18} /> Filter
-                    </Button>
-                    <Button variant="outline">
-                        <Download size={18} /> Export
-                    </Button>
-                </div>
-            </div>
-
-            {/* Filter Modal */}
-            <Modal
+            <FilterModal
                 isOpen={isFilterModalOpen}
                 onClose={() => setIsFilterModalOpen(false)}
-                title="Filter Leads"
-                footer={
-                    <div className="flex items-center justify-end w-full gap-4">
-                        <button
-                            onClick={() => setIsFilterModalOpen(false)}
-                            className="text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors"
-                        >
-                            Cancel
-                        </button>
-                        <Button
-                            onClick={() => navigate('/review-leads')}
-                            className="px-8 flex items-center gap-2"
-                        >
-                            Next <ArrowRight size={18} />
-                        </Button>
-                    </div>
-                }
-            >
-                <div className="space-y-8">
-                    {/* Website Available */}
-                    <div className="space-y-4">
-                        <label className="text-sm font-bold text-gray-900">Website Available</label>
-                        <div className="flex p-1 bg-gray-100 rounded-xl">
-                            {['Yes', 'No', 'Any'].map((option) => (
-                                <button
-                                    key={option}
-                                    onClick={() => setFilters({ ...filters, websiteAvailable: option })}
-                                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${filters.websiteAvailable === option
-                                        ? 'bg-white text-primary shadow-sm'
-                                        : 'text-gray-500 hover:text-gray-700'
-                                        }`}
-                                >
-                                    {option}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
+                filters={filters}
+                setFilters={setFilters}
+                onApply={handleFilter}
+                isFiltering={isFiltering}
+            />
+            <EnrichLeadsTable
+                currentLeads={currentLeads}
+                leads={leads}
+                selectedLeads={selectedLeads}
+                onToggleSelect={toggleLeadSelection}
+                onToggleSelectAll={toggleSelectAll}
+                currentPage={currentPage}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                onViewLead={handleViewLead}
+                processingLeadId={processingLeadId}
+                queryValue={queryValue}
+                cityValue={cityValue}
+                areaValue={areaValue}
+                onDeleteLead={handleDeleteClick}
+                filters={filters}
+                isFiltered={isFiltered}
+                filteredLeads={filteredLeads}
+                searchTerm={searchTerm}
+            />
 
-                    {/* Min Google Rating */}
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <label className="text-sm font-bold text-gray-900">Min. Google Rating</label>
-                            <span className="bg-primary/5 text-primary text-xs font-black px-2.5 py-1 rounded-lg border border-primary/10">
-                                {filters.minRating}
-                            </span>
-                        </div>
-                        <div className="relative pt-2">
-                            <input
-                                type="range"
-                                min="0"
-                                max="5"
-                                step="0.1"
-                                value={filters.minRating}
-                                onChange={(e) => setFilters({ ...filters, minRating: parseFloat(e.target.value) })}
-                                className="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-primary"
-                                style={{
-                                    background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(filters.minRating / 5) * 100}%, #f3f4f6 ${(filters.minRating / 5) * 100}%, #f3f4f6 100%)`
-                                }}
-                            />
-                            <div className="flex justify-between mt-4">
-                                {[0, 1, 2, 3, 4, 5].map((val) => (
-                                    <span key={val} className="text-[10px] font-bold text-gray-400">{val}</span>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
+            <DeleteConfirmModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={handleConfirmDelete}
+                isLoading={isDeleting}
+                title="Delete Lead"
+                message="Are you sure you want to delete this lead? This action cannot be undone."
+            />
 
-                    {/* Additional Parameters */}
-                    <div className="space-y-4">
-                        <label className="text-sm font-bold text-gray-900">Additional Parameters</label>
-                        <div className="relative">
-                            <select
-                                className="w-full pl-4 pr-10 py-3 bg-white border border-gray-100 rounded-xl text-sm font-medium text-gray-500 appearance-none focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer transition-all"
-                                value={filters.parameter}
-                                onChange={(e) => setFilters({ ...filters, parameter: e.target.value })}
-                            >
-                                <option value="" disabled>Select parameter (e.g., Industry, Size)</option>
-                                <option value="industry">Industry</option>
-                                <option value="size">Company Size</option>
-                                <option value="revenue">Annual Revenue</option>
-                            </select>
-                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                                <ChevronRightIcon size={18} className="rotate-90" />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Add More */}
-                    <button className="flex items-center gap-2 text-primary text-sm font-bold hover:opacity-80 transition-opacity">
-                        <Plus size={18} /> Add More
-                    </button>
-                </div>
-            </Modal>
-
-            {/* Leads Table */}
-            <Card noPadding className="overflow-hidden border-none shadow-xl shadow-black/[0.02]">
-                <div className="overflow-x-auto">
-                    <table className="w-full min-w-[700px] md:min-w-full">
-                        <thead>
-                            <tr className="text-left text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-white">
-                                <th className="px-8 py-5">BUSINESS NAME</th>
-                                <th className="px-8 py-5">CONTACT MOBILE</th>
-                                <th className="px-8 py-5">EMAIL</th>
-                                <th className="px-8 py-5">RATING</th>
-                                <th className="px-8 py-5">STATUS</th>
-                                <th className="px-8 py-5 text-right">ACTION</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 bg-white">
-                            {currentLeads.map((lead) => (
-                                <tr key={lead.id} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors">
-                                    <td className="px-8 py-6">
-                                        <div className="flex items-center gap-4">
-                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs ${lead.initialsColor}`}>
-                                                {lead.initials}
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-gray-900 text-sm leading-tight">{lead.name}</p>
-                                                <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5">{lead.location}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-6 text-sm font-bold text-gray-500">
-                                        {lead.mobile}
-                                    </td>
-                                    <td className="px-8 py-6 text-sm font-medium text-gray-500">
-                                        {lead.email}
-                                    </td>
-                                    <td className="px-8 py-6">
-                                        <RatingStars count={lead.rating} />
-                                    </td>
-                                    <td className="px-8 py-6 text-sm">
-                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-tight ${lead.statusColor}`}>
-                                            {lead.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-8 py-6 text-right">
-                                        <div className="flex items-center justify-end gap-3 text-gray-300">
-                                            <button
-                                                className="p-2 hover:text-primary transition-colors hover:bg-primary/5 rounded-lg active:scale-90"
-                                                onClick={() => navigate('/lead-details')}
-                                            >
-                                                <Eye size={18} />
-                                            </button>
-                                            <button className="p-2 hover:text-red-500 transition-colors hover:bg-red-50 rounded-lg active:scale-90">
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                <Pagination
-                    currentPage={currentPage}
-                    totalItems={leads.length}
-                    itemsPerPage={itemsPerPage}
-                    onPageChange={setCurrentPage}
-                />
-            </Card>
-
+            {/* Next Step CTA */}
             <div className="flex justify-end">
                 <Button
                     className="px-10 shadow-2xl shadow-primary/30 text-lg"
-                    onClick={() => navigate('/review-leads')}
+                    onClick={() => {
+                        const leadsToPass = selectedLeads.length > 0
+                            ? leads.filter(l => selectedLeads.includes(l.id || l.MobileNumber || l.result_id || l.business_information_id))
+                            : leads;
+                        navigate('/review-leads', {
+                            state: {
+                                results: leadsToPass,
+                                queryInfo: { 
+                                    niche: queryValue, 
+                                    city: cityValue, 
+                                    area: areaValue,
+                                    ...leadData 
+                                }
+                            }
+                        });
+                    }}
                 >
                     Next
                     <ChevronRight size={18} strokeWidth={3} />

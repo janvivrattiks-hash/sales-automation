@@ -1,240 +1,360 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
     ChevronRight,
-    Search,
-    Filter,
-    Download,
-    Eye,
-    Trash2,
-    Star,
-    ChevronLeft,
-    Users,
-    MoreHorizontal
+    Loader2
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Pagination from '../components/ui/Pagination';
+import { AppContext } from '../context/AppContext';
+import Api from '../../scripts/Api';
+import { hasRealOwnerName, deepGet } from '../utils/contactUtils';
+
+// Modularized Components
+import ReviewLeadsHeader from '../components/reviewLeads/ReviewLeadsHeader';
+import ReviewLeadsStats from '../components/reviewLeads/ReviewLeadsStats';
+import ReviewLeadsFilters from '../components/reviewLeads/ReviewLeadsFilters';
+import ReviewLeadsTable from '../components/reviewLeads/ReviewLeadsTable';
+import EnrichmentProgressModal from '../components/reviewLeads/EnrichmentProgressModal';
 
 const ReviewLeads = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const { leads, adminToken, user } = useContext(AppContext);
+    
+    // State
     const [searchTerm, setSearchTerm] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
+    const [categoryFilter, setCategoryFilter] = useState('All');
+    const [statusFilter, setStatusFilter] = useState('All');
+    const [currentPage, setCurrentPage] = useState(location.state?.currentPage || 1);
+    const [isEnriching, setIsEnriching] = useState(false);
+    const [selectedLeads, setSelectedLeads] = useState(location.state?.selectedLeads || []);
+    const [originalLeads, setOriginalLeads] = useState([]);
+    const [leadsToEnrich, setLeadsToEnrich] = useState(location.state?.leadsToEnrich || []);
+    const loadingLeadIdRef = useRef(null); // Synchronous ref to prevent concurrent calls
+    
     const itemsPerPage = 5;
 
-    const leads = [
-        {
-            id: 1,
-            initials: 'T',
-            initialsColor: 'bg-blue-50 text-blue-500',
-            name: 'TechFlow Solutions',
-            location: 'San Francisco, CA',
-            mobile: '+1 (555) 123-4567',
-            email: 'contact@techflow.com',
-            rating: 5,
-            status: 'Validated',
-            statusColor: 'bg-green-50 text-green-500'
-        },
-        {
-            id: 2,
-            initials: 'A',
-            initialsColor: 'bg-purple-50 text-purple-500',
-            name: 'Apex Innovations',
-            location: 'Austin, TX',
-            mobile: '+1 (555) 987-6543',
-            email: 'sales@apex.io',
-            rating: 4,
-            status: 'Validated',
-            statusColor: 'bg-green-50 text-green-500'
-        },
-        {
-            id: 3,
-            initials: 'S',
-            initialsColor: 'bg-orange-50 text-orange-500',
-            name: 'Summit Group',
-            location: 'Denver, CO',
-            mobile: '+1 (555) 456-7890',
-            email: 'hello@summit.net',
-            rating: 3,
-            status: 'Pending',
-            statusColor: 'bg-yellow-50 text-yellow-500'
-        },
-        {
-            id: 4,
-            initials: 'Q',
-            initialsColor: 'bg-cyan-50 text-cyan-500',
-            name: 'Quantum Dynamics',
-            location: 'New York, NY',
-            mobile: '+1 (555) 234-5678',
-            email: 'info@quantum.org',
-            rating: 5,
-            status: 'Validated',
-            statusColor: 'bg-green-50 text-green-500'
-        },
-        {
-            id: 5,
-            initials: 'N',
-            initialsColor: 'bg-pink-50 text-pink-500',
-            name: 'Nebula Systems',
-            location: 'Seattle, WA',
-            mobile: '+1 (555) 876-5432',
-            email: 'support@nebula.co',
-            rating: 2,
-            status: 'Pending',
-            statusColor: 'bg-yellow-50 text-yellow-500'
+    useEffect(() => {
+        const rawResults = location.state?.results;
+        if (rawResults) {
+            let leadsArray = [];
+            if (Array.isArray(rawResults)) {
+                leadsArray = rawResults;
+            } else {
+                leadsArray = rawResults.results || rawResults.data || rawResults.leads || [];
+                // If it's still not an array but an object with a data property that's an array
+                if (!Array.isArray(leadsArray) && leadsArray.data && Array.isArray(leadsArray.data)) {
+                    leadsArray = leadsArray.data;
+                }
+            }
+            setOriginalLeads(Array.isArray(leadsArray) ? leadsArray : []);
+        } else if (leads && leads.length > 0) {
+            setOriginalLeads(Array.isArray(leads) ? leads : (leads.results || leads.data || []));
+        } else {
+            setOriginalLeads([]);
         }
-    ];
+    }, [location.state, leads]);
+    
+    // Synchronize local state with history state for robust back-navigation preservation
+    useEffect(() => {
+        const historyPage = location.state?.currentPage;
+        const historySelectedCount = location.state?.selectedLeads?.length || 0;
+        const historySearch = location.state?.searchTerm;
+        const historyStatus = location.state?.statusFilter;
+        const historyCategory = location.state?.categoryFilter;
+        
+        const needsSync = (currentPage !== historyPage) || 
+                          (selectedLeads.length !== historySelectedCount) ||
+                          (searchTerm !== historySearch) ||
+                          (statusFilter !== historyStatus) ||
+                          (categoryFilter !== historyCategory);
 
-    const RatingStars = ({ count }) => {
-        return (
-            <div className="flex gap-0.5">
-                {[...Array(5)].map((_, i) => (
-                    <Star
-                        key={i}
-                        size={14}
-                        className={i < count ? "fill-orange-400 text-orange-400" : "text-gray-200"}
-                    />
-                ))}
-            </div>
-        );
-    };
+        if (needsSync) {
+            console.log("🔄 [ReviewLeads] Syncing filters/pagination to history:", { currentPage, selected: selectedLeads.length });
+            navigate(location.pathname, {
+                replace: true,
+                state: {
+                    ...location.state,
+                    currentPage,
+                    selectedLeads,
+                    searchTerm,
+                    statusFilter,
+                    categoryFilter
+                }
+            });
+        }
+    }, [currentPage, selectedLeads, searchTerm, statusFilter, categoryFilter, location.pathname, location.state, navigate]);
+
+    const queryInfo = location.state?.queryInfo ?? {};
+
+    // Robust search and filtering logic
+    const filteredLeads = React.useMemo(() => {
+        let results = Array.isArray(originalLeads) ? [...originalLeads] : [];
+
+        if (searchTerm) {
+            const searchLower = searchTerm.toLowerCase();
+            results = results.filter(lead => {
+                const name = (lead?.name || lead?.BusinessName || lead?.business_name || "").toLowerCase();
+                const email = (lead?.email || "").toLowerCase();
+                return name.includes(searchLower) || email.includes(searchLower);
+            });
+        }
+
+        if (categoryFilter !== "All") {
+            results = results.filter(lead => {
+                const cat = lead?.category || lead?.Category || lead?.business_category || lead?.business_category_name || "";
+                return cat?.toLowerCase().includes(categoryFilter.toLowerCase());
+            });
+        }
+
+        if (statusFilter !== "All") {
+            results = results.filter(lead => {
+                const status = (lead?.status || "Pending").toLowerCase();
+                return status === statusFilter.toLowerCase();
+            });
+        }
+
+        return results;
+    }, [originalLeads, searchTerm, categoryFilter, statusFilter]);
+
+    // Reset to first page when leads or filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [originalLeads, searchTerm, categoryFilter, statusFilter]);
+
+    // Extract unique categories for the filter
+    const categories = React.useMemo(() => {
+        const cats = originalLeads
+            .map(l => l?.category || l?.Category || l?.business_category || l?.business_category_name)
+            .filter(Boolean);
+        return ["All", ...Array.from(new Set(cats))];
+    }, [originalLeads]);
 
     const startIndex = (currentPage - 1) * itemsPerPage;
-    const currentLeads = leads.slice(startIndex, startIndex + itemsPerPage);
+    const currentLeads = filteredLeads.slice(startIndex, startIndex + itemsPerPage);
+
+    useEffect(() => {
+        document.body.style.overflow = 'unset';
+        window.scrollTo(0, 0);
+        const timer = setTimeout(() => window.scrollTo(0, 0), 10);
+        return () => clearTimeout(timer);
+    }, []);
+
+    const handleSelectAll = useCallback((checked) => {
+        const currentIds = currentLeads.map(l => l.id || l.MobileNumber || l.mobile_number);
+        if (checked) {
+            setSelectedLeads(prev => [...new Set([...prev, ...currentIds])]);
+        } else {
+            setSelectedLeads(prev => prev.filter(id => !currentIds.includes(id)));
+        }
+    }, [currentLeads]);
+
+    const handleSelectOne = useCallback((id) => {
+        setSelectedLeads(prev =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    }, []);
+
+    const handleViewLead = useCallback(async (lead) => {
+        if (!lead) return;
+
+        // 1. Check if we already have the info we need
+        if (hasRealOwnerName(lead)) {
+            navigate('/lead-details', { 
+                state: { singleLead: lead, results: originalLeads, queryInfo, backUrl: '/review-leads' } 
+            });
+            return;
+        }
+
+        // 2. Extract lead ID
+        const leadId = deepGet(lead, ['id', 'result_id', 'business_information_id', 'lead_id', 'search_id']);
+        
+        if (!leadId) {
+            navigate('/lead-details', { 
+                state: { 
+                    ...location.state,
+                    singleLead: lead, 
+                    results: originalLeads, 
+                    queryInfo, 
+                    selectedLeads,
+                    currentPage,
+                    searchTerm,
+                    categoryFilter,
+                    statusFilter,
+                    backUrl: '/review-leads' 
+                } 
+            });
+            return;
+        }
+
+        // SYNCHRONOUS guard: prevent concurrent calls using useRef
+        if (loadingLeadIdRef.current === leadId) return;
+
+        loadingLeadIdRef.current = leadId;
+        
+        try {
+            // Fetch with cache bypass
+            const freshLeadData = await Api.getLeadById(leadId, adminToken, true);
+            const dataToUse = freshLeadData?.data || freshLeadData;
+            
+            if (loadingLeadIdRef.current === leadId) {
+                navigate('/lead-details', { 
+                    state: { 
+                        ...location.state,
+                        selectedLead: dataToUse ? { ...lead, ...dataToUse } : lead, 
+                        results: originalLeads, 
+                        queryInfo,
+                        selectedLeads,
+                        currentPage,
+                        searchTerm,
+                        categoryFilter,
+                        statusFilter,
+                        backUrl: '/review-leads'
+                    } 
+                });
+            }
+        } catch (error) {
+            console.error('❌ [ReviewLeads] Error:', error);
+            if (loadingLeadIdRef.current === leadId) {
+                navigate('/lead-details', { 
+                    state: { 
+                        ...location.state,
+                        singleLead: lead, 
+                        results: originalLeads, 
+                        queryInfo, 
+                        selectedLeads,
+                        currentPage,
+                        searchTerm,
+                        categoryFilter,
+                        statusFilter,
+                        backUrl: '/review-leads' 
+                    } 
+                });
+            }
+        } finally {
+            loadingLeadIdRef.current = null;
+        }
+    }, [adminToken, originalLeads, queryInfo, navigate]);
+
+    const handleDeleteLead = useCallback((id) => {
+        console.log("Delete lead:", id);
+    }, []);
+
+    const enrichLeads = async () => {
+        const leadsToPass = selectedLeads.length
+            ? filteredLeads.filter((lead) => {
+                const id = lead.id || lead.MobileNumber || lead.mobile_number;
+                return selectedLeads.includes(id);
+            })
+            : filteredLeads;
+
+        if (!leadsToPass.length) {
+            return;
+        }
+
+        try {
+            // Trigger enrichment (starts the background tasks)
+            Api.enrichLeads(leadsToPass, adminToken); // Fire and forget, we'll listen on the next page
+            
+            // Clear from Pending Jobs
+            const jobId = queryInfo.job_id;
+            if (jobId) {
+                const pendingJobs = JSON.parse(localStorage.getItem('lead_gen_pending_jobs') || '[]');
+                const updatedPending = pendingJobs.filter(j => j.job_id !== jobId);
+                localStorage.setItem('lead_gen_pending_jobs', JSON.stringify(updatedPending));
+            }
+
+            navigate("/final-leads", {
+                state: {
+                    leadsToEnrich: leadsToPass,
+                    queryInfo
+                }
+            });
+
+        } catch (error) {
+            console.error("Enrich API Error:", error);
+        }
+    };
 
     return (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-10">
-            {/* Breadcrumbs */}
-            <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">
-                <span className="cursor-pointer hover:text-gray-600">Lead Generator</span>
-                <ChevronRight size={10} />
-                <span className="text-gray-900">Review</span>
-            </div>
+        <div className="animate-in fade-in duration-700 space-y-8 pb-10">
 
-            {/* Header section with Stats Card */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Review Leads</h1>
-                    <p className="text-gray-500 text-sm mt-1">Select and verify contacts before proceeding to enrichment.</p>
+                    <ReviewLeadsHeader leads={originalLeads} queryInfo={queryInfo} location={location} />
+                    {queryInfo && (queryInfo.niche || queryInfo.city) && (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                            <span className="px-3 py-1 bg-blue-50 text-blue-600 text-xs font-bold rounded-lg uppercase tracking-wider">Target: {queryInfo.niche || 'N/A'}</span>
+                            <span className="px-3 py-1 bg-gray-50 text-gray-600 text-xs font-bold rounded-lg uppercase tracking-wider">Location: {queryInfo.city || 'Any'} {queryInfo.area ? `(${queryInfo.area})` : ''}</span>
+                        </div>
+                    )}
                 </div>
-
-                {/* Stats Card Styled as per screenshot */}
-                <div className="bg-white px-6 py-4 rounded-xl border border-gray-100 flex items-center gap-4 shadow-sm min-w-[200px]">
-                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-                        <Users size={20} />
-                    </div>
-                    <div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider leading-none">Total Leads</p>
-                        <p className="text-2xl font-bold text-gray-900 mt-1">100</p>
-                    </div>
-                </div>
+                <ReviewLeadsStats totalLeads={filteredLeads.length} />
             </div>
 
-            {/* Table Container */}
-            <Card noPadding className="overflow-hidden border-none shadow-xl shadow-black/[0.02]">
-                {/* Search and Filters Bar */}
-                <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/50">
-                    <div className="relative flex-1 max-w-md">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Search by business name, email..."
-                            className="w-full pl-12 pr-4 py-2.5 bg-gray-50/50 border border-transparent rounded-xl text-sm font-medium focus:bg-white focus:border-primary/20 focus:ring-4 focus:ring-primary/5 outline-none transition-all"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                    <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="bg-white">
-                            <Filter size={16} /> Filter
-                        </Button>
-                        <Button variant="outline" size="sm" className="bg-white">
-                            <Download size={16} /> Export
-                        </Button>
-                    </div>
-                </div>
+            <Card noPadding className="border-none shadow-xl shadow-black/[0.02]">
+                <ReviewLeadsFilters 
+                    searchTerm={searchTerm}
+                    setSearchTerm={setSearchTerm}
+                    categoryFilter={categoryFilter}
+                    setCategoryFilter={setCategoryFilter}
+                    statusFilter={statusFilter}
+                    setStatusFilter={setStatusFilter}
+                    categories={categories}
+                />
 
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead>
-                            <tr className="text-left text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-white">
-                                <th className="px-8 py-5 w-10">
-                                    <input type="checkbox" className="rounded text-primary border-gray-200 focus:ring-primary" />
-                                </th>
-                                <th className="px-8 py-5">BUSINESS NAME</th>
-                                <th className="px-8 py-5">MOBILE</th>
-                                <th className="px-8 py-5">EMAIL</th>
-                                <th className="px-8 py-5">RATING</th>
-                                <th className="px-8 py-5">STATUS</th>
-                                <th className="px-8 py-5 text-right">ACTION</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 bg-white">
-                            {currentLeads.map((lead) => (
-                                <tr key={lead.id} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors">
-                                    <td className="px-8 py-6">
-                                        <input type="checkbox" className="rounded text-primary border-gray-200 focus:ring-primary" />
-                                    </td>
-                                    <td className="px-8 py-6">
-                                        <div className="flex items-center gap-4">
-                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs ${lead.initialsColor}`}>
-                                                {lead.initials}
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-gray-900 text-sm leading-tight">{lead.name}</p>
-                                                <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5">{lead.location}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-6 text-sm font-bold text-gray-500">
-                                        {lead.mobile}
-                                    </td>
-                                    <td className="px-8 py-6 text-sm font-medium text-gray-500">
-                                        {lead.email}
-                                    </td>
-                                    <td className="px-8 py-6">
-                                        <RatingStars count={lead.rating} />
-                                    </td>
-                                    <td className="px-8 py-6 text-sm">
-                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-tight ${lead.statusColor}`}>
-                                            {lead.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-8 py-6 text-right">
-                                        <div className="flex items-center justify-end gap-3 text-gray-300">
-                                            <button
-                                                className="p-2 hover:text-primary transition-colors hover:bg-primary/5 rounded-lg active:scale-90"
-                                                onClick={() => navigate('/lead-details')}
-                                            >
-                                                <Eye size={18} />
-                                            </button>
-                                            <button className="p-2 hover:text-red-500 transition-colors hover:bg-red-50 rounded-lg active:scale-90">
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <ReviewLeadsTable 
+                    currentLeads={currentLeads}
+                    selectedLeads={selectedLeads}
+                    onSelectAll={handleSelectAll}
+                    onSelectOne={handleSelectOne}
+                    onViewLead={handleViewLead}
+                    onDeleteLead={handleDeleteLead}
+                    isEnriching={isEnriching}
+                />
 
                 <Pagination
                     currentPage={currentPage}
-                    totalItems={leads.length}
+                    totalItems={filteredLeads.length}
                     itemsPerPage={itemsPerPage}
                     onPageChange={setCurrentPage}
                 />
             </Card>
 
-            {/* Next Step Button */}
-            <div className="flex justify-end">
+            <div className="flex justify-between items-center">
                 <Button
-                    className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center gap-2 shadow-xl shadow-blue-200 transition-all active:scale-95"
-                    onClick={() => navigate('/final-leads')}
+                    variant="outline"
+                    className="px-8 py-3 border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl font-bold transition-all active:scale-95"
+                    onClick={() => navigate('/enrich', { 
+                        state: { 
+                            ...location.state,
+                            results: originalLeads, 
+                            queryInfo,
+                            selectedLeads
+                        } 
+                    })}
                 >
-                    Next
-                    <ChevronRight size={18} />
+                    Back
+                </Button>
+
+                <Button
+                    className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center gap-2 shadow-xl shadow-blue-200 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+                    disabled={isEnriching}
+                    onClick={enrichLeads}
+                >
+                    {isEnriching ? (
+                        <>
+                            <Loader2 size={18} className="animate-spin" />
+                            Enriching...
+                        </>
+                    ) : (
+                        <>
+                            Next
+                            <ChevronRight size={18} />
+                        </>
+                    )}
                 </Button>
             </div>
         </div>

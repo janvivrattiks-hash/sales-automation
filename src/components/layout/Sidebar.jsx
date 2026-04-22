@@ -17,12 +17,12 @@ const Sidebar = () => {
     const location = useLocation();
 
     const navItems = [
-        { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+        { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
         { name: 'Lead Generator', path: '/lead-generator', icon: Search, subPaths: ['/lead-details', '/search-history', '/enrich', '/review-leads', '/final-leads'] },
-        { name: 'Contacts Management', path: '/contacts', icon: Users },
+        { name: 'Contacts Management', path: '/contacts', icon: Users, subPaths: ['/audience-list', '/raw-contact-details', '/audience-details', '/contact-details', '/single-audience-view'] },
         { name: 'Report Management', path: '/reports', icon: BarChart3 },
-        { name: 'ICPs', path: '/icp', icon: Target },
-        { name: 'Business Information', path: '/business', icon: Building2 },
+        { name: 'ICPs', path: '/icp', icon: Target, subPaths: ['/create-icp', '/icp-details'] },
+        { name: 'Business Information', path: '/business', icon: Building2, subPaths: ['/edit-business-info'] },
     ];
 
     return (
@@ -59,14 +59,18 @@ const Sidebar = () => {
                         return (
                             <NavLink
                                 key={item.path}
-                                to={item.path}
-                                onClick={() => {
+                                to={item.name === 'ICPs' ? '#' : item.path}
+                                onClick={(e) => {
+                                    if (item.name === 'ICPs') {
+                                        e.preventDefault();
+                                        return;
+                                    }
                                     // Close sidebar on mobile when a link is clicked
                                     if (window.innerWidth < 768) {
                                         setSidebarOpen(false);
                                     }
                                 }}
-                                className={`flex items-center gap-4 p-3 rounded-lg transition-all duration-300 ${isActive
+                                className={`flex items-center gap-4 p-3 rounded-lg transition-all duration-300 ${item.name === 'ICPs' ? 'opacity-70 cursor-not-allowed' : ''} ${isActive
                                     ? 'bg-primary text-white shadow-lg shadow-primary/20'
                                     : 'text-gray-500 hover:bg-gray-50'
                                     }`}

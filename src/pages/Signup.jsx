@@ -3,7 +3,6 @@ import { Mail, Lock, UserPlus, Chrome, Eye, EyeOff } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Api from '../../scripts/Api';
-import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 
 const Signup = () => {
@@ -28,7 +27,7 @@ const Signup = () => {
     const handleSubmit = async (e) => { // handle submit
         e.preventDefault();
         if (password !== confirmPassword) {
-            toast.error("Passwords do not match");
+            console.error("Passwords do not match");
             return;
         }
         const res = await Api.Signup(email, password, confirmPassword);

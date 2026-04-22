@@ -1,52 +1,289 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
-    Users,
-    Search,
-    Filter,
-    Download,
-    MoreHorizontal,
-    Mail,
-    Phone,
-    Calendar,
-    ChevronLeft,
-    ChevronRight
+    Users, Search, Filter, Download, Upload, Loader2, Zap, ArrowRight, Plus, ChevronRight, ChevronDown, X
 } from 'lucide-react';
+
+// UI Components
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
+import Modal from '../components/ui/Modal';
 import Pagination from '../components/ui/Pagination';
+import StarRating from '../components/ui/StarRating';
+
+// Modularized Parts
+import { useContacts } from '../hooks/useContacts';
+import ContactRow from '../components/contacts/ContactRow';
+import AudienceTable from '../components/contacts/AudienceTable';
+import FilterForm from '../components/contacts/FilterForm';
+import DeleteModal from '../components/contacts/DeleteModal';
+import Api from '../../scripts/Api';
+import { AppContext } from '../context/AppContext';
 
 const Contacts = () => {
-    const [contacts, setContacts] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [currentPage, setCurrentPage] = useState(1);
+    const navigate = useNavigate();
+    const location = useLocation();
+    const { adminToken, leads: contextLeads } = useContext(AppContext);
+
+    // Hooks & State
+    const contactsHook = useContacts(navigate, location);
+    const {
+        rawContacts, enrichedContacts, audiences,
+        rawLoading, audLoading, loading, setLoading,
+        isFiltering, isSavingAudience,
+        selectedLeads, setSelectedLeads,
+        selectedLeadsInModal, setSelectedLeadsInModal,
+        viewingId, setViewingId,
+        deletingId,
+        filters, setFilters,
+        audienceData, setAudienceData,
+        uiTags, setUiTags,
+        fetchEnrichedData, fetchRawData, fetchAudiences,
+        toggleLeadSelection, toggleModalLeadSelection,
+        handleFilter, handleSaveAudience, handleDeleteLead, handleDeleteAudience
+    } = contactsHook;
+
+    const [isEnriched, setIsEnriched] = useState(
+        location.state?.isEnriched ?? (
+            location.state?.activeTab === 'enriched' || 
+            location.state?.fromTab === 'enriched'
+        )
+    );
+    const [rawPage, setRawPage] = useState(location.state?.rawPage || 1);
+    const [enrichedPage, setEnrichedPage] = useState(location.state?.enrichedPage || 1);
+    
+    // Abstract the current page based on active tab
+    const currentPage = isEnriched ? enrichedPage : rawPage;
+    const setCurrentPage = (page) => {
+        if (isEnriched) setEnrichedPage(page);
+        else setRawPage(page);
+    };
+    const [searchQuery, setSearchQuery] = useState(location.state?.searchQuery || '');
+    const [audSearchQuery, setAudSearchQuery] = useState(location.state?.audSearchQuery || '');
+    const [isMainFilterOpen, setIsMainFilterOpen] = useState(false);
+    const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+    const [isSaveAudienceModalOpen, setIsSaveAudienceModalOpen] = useState(false);
+    const [saveMode, setSaveMode] = useState('new'); // 'new' or 'existing'
+    const [selectedAudienceId, setSelectedAudienceId] = useState('');
+    const [filterLeadsData, setFilterLeadsData] = useState([]);
+    const [modalCurrentPage, setModalCurrentPage] = useState(1);
+    const [deleteModalState, setDeleteModalState] = useState({ open: false, type: 'lead', data: null });
+
     const itemsPerPage = 10;
+    const modalItemsPerPage = 5;
 
+    // Lifecycles
     useEffect(() => {
-        const fetchData = async () => {
-            const data = await apiClient.getLeads(); // Reusing the same dummy data for contacts
-            setContacts(data);
-            setLoading(false);
-        };
-        fetchData();
-    }, []);
+        window.scrollTo(0, 0);
+        if (adminToken) {
+            fetchRawData();
+            fetchAudiences();
+        }
+    }, [adminToken, fetchRawData, fetchAudiences]);
 
+    // Fetch enriched data only when switching to its tab (lazy load)
+    useEffect(() => {
+        if (adminToken && isEnriched && enrichedContacts.length === 0) {
+            fetchEnrichedData();
+        }
+    }, [isEnriched, adminToken, fetchEnrichedData, enrichedContacts.length]);
+
+    // Derived State
+    const activeContacts = isEnriched ? enrichedContacts : rawContacts;
+
+    const filteredLeads = useMemo(() => {
+        const q = searchQuery.toLowerCase();
+        return activeContacts.filter(contact =>
+            (contact.name || contact.BusinessName || '').toLowerCase().includes(q) ||
+            (contact.email || contact.Email || '').toLowerCase().includes(q) ||
+            (contact.phone || contact.MobileNumber || contact.mobile || '').toLowerCase().includes(q)
+        );
+    }, [activeContacts, searchQuery]);
+
+    const filteredAudiences = useMemo(() => {
+        const q = audSearchQuery.toLowerCase();
+        return audiences.filter(audience =>
+            (audience.audiance_name || '').toLowerCase().includes(q) ||
+            (audience.tag || '').toLowerCase().includes(q)
+        );
+    }, [audiences, audSearchQuery]);
+
+    const displayContacts = filteredLeads;
     const startIndex = (currentPage - 1) * itemsPerPage;
-    const currentContacts = contacts.slice(startIndex, startIndex + itemsPerPage);
+    const currentContacts = displayContacts.slice(startIndex, startIndex + itemsPerPage);
+
+    // Synchronize local state with history state for robust back-navigation preservation
+    useEffect(() => {
+        const historyRawPage = location.state?.rawPage;
+        const historyEnrichedPage = location.state?.enrichedPage;
+        const historySearch = location.state?.searchQuery;
+        const historyIsEnriched = location.state?.isEnriched;
+        const historySelectedCount = location.state?.selectedLeads?.length || 0;
+        
+        const needsSync = (rawPage !== historyRawPage) || 
+                          (enrichedPage !== historyEnrichedPage) ||
+                          (searchQuery !== historySearch) ||
+                          (isEnriched !== historyIsEnriched) ||
+                          (selectedLeads.length !== historySelectedCount);
+
+        if (needsSync) {
+            console.log("🔄 [Contacts] Syncing pagination/selection to history:", { rawPage, enrichedPage, isEnriched });
+            navigate(location.pathname, {
+                replace: true,
+                state: {
+                    ...location.state,
+                    rawPage,
+                    enrichedPage,
+                    searchQuery,
+                    isEnriched,
+                    selectedLeads
+                }
+            });
+        }
+    }, [rawPage, enrichedPage, searchQuery, isEnriched, selectedLeads, location.pathname, location.state, navigate]);
+
+    // Handlers
+    const handleEnrichLeads = () => {
+        const leadsToEnrich = selectedLeads.length > 0
+            ? rawContacts.filter(l => selectedLeads.includes(l.id || l.result_id))
+            : rawContacts;
+
+        navigate('/enrich', { state: { results: leadsToEnrich, fromContacts: true } });
+    };
+
+    const handleViewRawContact = (lead) => {
+        navigate('/contact-details', { 
+            state: { 
+                ...location.state,
+                singleLead: lead, 
+                fromTab: 'raw',
+                isEnriched: false,
+                rawPage,
+                enrichedPage,
+                searchQuery,
+                selectedLeads,
+                backUrl: '/contacts'
+            } 
+        });
+    };
+
+    const handleViewLead = async (lead) => {
+        const resultId = lead.result_id || lead.id;
+
+        if (!resultId) {
+            console.error("Lead ID not found");
+            return;
+        }
+
+        setViewingId(resultId);
+
+        try {
+            // Parallel fetch for enrichment data and POI details
+            const [resData, poiData] = await Promise.all([
+                Api.getEnrichmentJson(resultId, adminToken),
+                Api.getPOIDetails(resultId, adminToken)
+            ]);
+
+            if (!resData) {
+                console.error("No data received from API or data is empty");
+                return;
+            }
+
+            // Extract the core data from the full response body
+            const body = resData.data || resData.results || resData.lead || resData;
+            const coreData = Array.isArray(body) ? body[0] : body;
+
+            // Clean merge (POI data will be handled in the Single View page if needed)
+            const mergedLead = {
+                ...lead,
+                ...coreData,
+                poi_details: poiData
+            };
+
+            navigate('/contact-details', {
+                state: {
+                    ...location.state,
+                    singleLead: mergedLead,
+                    fromTab: isEnriched ? 'enriched' : 'raw',
+                    isEnriched,
+                    rawPage,
+                    enrichedPage,
+                    searchQuery,
+                    selectedLeads,
+                    backUrl: '/contacts'
+                }
+            });
+
+        } catch (error) {
+            console.error("Failed to load details", error);
+            navigate('/contact-details', {
+                state: {
+                    ...location.state,
+                    singleLead: lead,
+                    fromTab: isEnriched ? 'enriched' : 'raw',
+                    isEnriched,
+                    rawPage,
+                    enrichedPage,
+                    searchQuery,
+                    selectedLeads,
+                    backUrl: '/contacts'
+                }
+            });
+        } finally {
+            setViewingId(null);
+        }
+    };
+
+    const handleOpenFilterModal = () => {
+        setFilterLeadsData(activeContacts);
+        setIsFilterModalOpen(true);
+        setSelectedLeadsInModal([]);
+        setModalCurrentPage(1);
+    };
+
+    const handleDeleteConfirm = async (id) => {
+        const { type } = deleteModalState;
+        if (type === 'audience') {
+            await handleDeleteAudience(id);
+        } else {
+            await handleDeleteLead(id, isEnriched);
+        }
+        setDeleteModalState({ open: false, type: 'lead', data: null });
+    };
 
     return (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8">
+        <div className="animate-in fade-in duration-700 space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Contact Management</h1>
-                    <p className="text-gray-500 text-sm mt-1">View and manage your source leads and potential partners.</p>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900">Contact Management</h1>
+                        <p className="text-gray-500 text-sm mt-1">View and manage your source leads and potential partners.</p>
+                    </div>
+                    <div className="flex items-center gap-1 bg-white border border-gray-100 p-1 rounded-xl shadow-sm">
+                        <button onClick={() => setIsEnriched(false)} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${!isEnriched ? 'bg-primary/10 text-primary' : 'text-gray-500 hover:text-gray-700'}`}>Raw Data</button>
+                        <button onClick={() => { setIsEnriched(true); setEnrichedPage(1); }} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${isEnriched ? 'bg-primary/10 text-primary' : 'text-gray-500 hover:text-gray-700'}`}>Enriched Data</button>
+                    </div>
                 </div>
-                <div className="flex gap-3">
-                    <Button variant="outline">
-                        <Download size={18} /> Export
-                    </Button>
-                    <Button>
-                        <Users size={18} /> Add Contact
+                <div className="flex flex-wrap items-center gap-3">
+                    {!isEnriched && (
+                        <Button variant="outline" className="flex items-center gap-2 px-4 shadow-sm"><Download size={16} /> Export</Button>
+                    )}
+                    <Button variant="outline" className="flex items-center gap-2 px-4 shadow-sm"><Upload size={16} /> Import</Button>
+                    {!isEnriched && (
+                        <Button variant="outline" onClick={() => setIsMainFilterOpen(true)} className="flex items-center gap-2 px-4 shadow-sm"><Filter size={16} /> Filter</Button>
+                    )}
+                    <Button 
+                        onClick={isEnriched 
+                            ? (selectedLeads.length > 0 ? () => setIsSaveAudienceModalOpen(true) : handleOpenFilterModal) 
+                            : (selectedLeads.length > 0 ? handleEnrichLeads : handleOpenFilterModal)
+                        } 
+                        className="flex items-center gap-2 px-6 shadow-lg bg-blue-600 hover:bg-blue-700 font-bold" 
+                        disabled={loading}
+                    >
+                        {isEnriched ? <Users size={16} /> : <Zap size={16} className="fill-current" />}
+                        {isEnriched ? "Create Audience" : "Enrich Data"}
+                        {loading && !isEnriched && <Loader2 size={14} className="animate-spin ml-1" />}
                     </Button>
                 </div>
             </div>
@@ -56,92 +293,227 @@ const Contacts = () => {
                     <div className="flex items-center gap-4 flex-1 min-w-[300px]">
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                            <input
-                                type="text"
-                                placeholder="Search by name, email or company..."
-                                className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                            />
+                            <Input placeholder="Search by name, email or company..." className="pl-10" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} />
                         </div>
-                        <Button variant="outline" className="h-[38px] px-3">
-                            <Filter size={16} /> Filter
-                        </Button>
                     </div>
                     <div className="text-sm text-gray-500 font-medium">
-                        Showing <span className="text-gray-900">1-10</span> of 1,248 contacts
+                        Showing <span className="text-gray-900">{displayContacts.length > 0 ? startIndex + 1 : 0}-{Math.min(startIndex + itemsPerPage, displayContacts.length)}</span> of {displayContacts.length.toLocaleString()} contacts
                     </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead>
-                            <tr className="text-left text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-white">
-                                <th className="px-6 py-4">Contact</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4">Last Activity</th>
-                                <th className="px-6 py-4">Priority</th>
-                                <th className="px-6 py-4 text-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {currentContacts.map((contact) => (
-                                <tr key={contact.id} className="hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors group">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary font-bold">
-                                                {contact.name.charAt(0)}
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-gray-900">{contact.name}</p>
-                                                <p className="text-sm text-gray-500">{contact.company}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className={`px-2.5 py-1 rounded-lg text-xs font-bold uppercase ${contact.status === 'New' ? 'bg-blue-100 text-blue-600' :
-                                            contact.status === 'Contacted' ? 'bg-orange-100 text-orange-600' :
-                                                'bg-green-100 text-green-600'
-                                            }`}>
-                                            {contact.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                                            <Calendar size={14} /> Yesterday
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className={`w-24 h-1.5 rounded-full bg-gray-100 overflow-hidden`}>
-                                            <div className={`h-full ${contact.priority === 'High' ? 'bg-red-400' :
-                                                contact.priority === 'Medium' ? 'bg-yellow-400' : 'bg-green-400'
-                                                }`} style={{ width: contact.priority === 'High' ? '100%' : contact.priority === 'Medium' ? '60%' : '30%' }}></div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button className="p-2 hover:bg-primary/10 hover:text-primary rounded-lg text-gray-400 transition-colors">
-                                                <Mail size={18} />
-                                            </button>
-                                            <button className="p-2 hover:bg-primary/10 hover:text-primary rounded-lg text-gray-400 transition-colors">
-                                                <Phone size={18} />
-                                            </button>
-                                            <button className="p-2 hover:bg-gray-100 rounded-lg text-gray-400">
-                                                <MoreHorizontal size={18} />
-                                            </button>
-                                        </div>
-                                    </td>
+                <div className="overflow-x-auto relative min-h-[400px]">
+                    {rawLoading ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/50 z-10">
+                            <Loader2 className="animate-spin text-primary mb-2" size={32} />
+                            <p className="text-sm font-bold text-gray-500 uppercase tracking-widest">Loading contacts...</p>
+                        </div>
+                    ) : displayContacts.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+                            <Users size={32} className="text-gray-300 mb-4" />
+                            <h3 className="text-lg font-bold text-gray-900">No {isEnriched ? 'enriched' : 'raw'} contacts found</h3>
+                        </div>
+                    ) : (
+                        <table className="w-full">
+                            <thead>
+                                <tr className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-white">
+                                    <th className="px-6 py-4">
+                                        <input type="checkbox" onChange={(e) => setSelectedLeads(e.target.checked ? currentContacts.map(l => l.id || l.result_id) : [])} checked={currentContacts.length > 0 && currentContacts.every(l => selectedLeads.includes(l.id || l.result_id))} />
+                                    </th>
+                                    <th className="px-6 py-4">{isEnriched ? 'BUSINESS NAME' : 'Business Name'}</th>
+                                    <th className="px-6 py-4">{isEnriched ? 'CONTACT INFO' : 'Contact Mobile'}</th>
+                                    <th className="px-6 py-4">{isEnriched ? 'SOCIAL LINKS' : 'Email'}</th>
+                                    <th className="px-6 py-4">WEBSITE</th>
+                                    <th className="px-6 py-4">RATING</th>
+                                    <th className="px-6 py-4">STATUS</th>
+                                    <th className="px-6 py-4 text-right">ACTION</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {currentContacts.map((contact, idx) => (
+                                    <ContactRow
+                                        key={contact.id || idx}
+                                        contact={contact}
+                                        idx={idx}
+                                        isEnriched={isEnriched}
+                                        selectedLeads={selectedLeads}
+                                        toggleLeadSelection={toggleLeadSelection}
+                                        handleViewLead={handleViewLead}
+                                        handleViewRawContact={handleViewRawContact}
+                                        setDeleteModal={setDeleteModalState}
+                                        viewingId={viewingId}
+                                        deletingId={deletingId}
+                                    />
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
-
-                <Pagination
-                    currentPage={currentPage}
-                    totalItems={contacts.length}
-                    itemsPerPage={itemsPerPage}
-                    onPageChange={setCurrentPage}
-                />
+                <Pagination currentPage={currentPage} totalItems={displayContacts.length} itemsPerPage={itemsPerPage} onPageChange={setCurrentPage} />
             </Card>
+
+            <AudienceTable
+                audiences={audiences}
+                filteredAudiences={filteredAudiences}
+                audLoading={audLoading}
+                navigate={navigate}
+                setDeleteModal={setDeleteModalState}
+            />
+
+            {/* Modals */}
+            <Modal isOpen={isMainFilterOpen} onClose={() => setIsMainFilterOpen(false)} title="Filter Data" footer={(
+                <div className="flex items-center justify-end gap-3 w-full">
+                    <Button onClick={() => handleFilter(true, isEnriched, () => setIsMainFilterOpen(false))} className="bg-blue-600" disabled={isFiltering}>
+                        {isFiltering ? <Loader2 className="animate-spin" size={18} /> : 'Apply Filters'}
+                    </Button>
+                </div>
+            )}>
+                <FilterForm filters={filters} setFilters={setFilters} />
+            </Modal>
+
+            <Modal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} title="Filter Leads" footer={(
+                <div className="flex items-center justify-between w-full">
+                    <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">{selectedLeadsInModal.length} Selected</div>
+                    <Button 
+                        onClick={() => {
+                            handleFilter(false, isEnriched, (filteredData) => {
+                                setFilterLeadsData(filteredData);
+                                setIsFilterModalOpen(false);
+                                if (isEnriched) {
+                                    setIsSaveAudienceModalOpen(true);
+                                } else {
+                                    navigate('/enrich', { state: { results: filteredData, fromContacts: true } });
+                                }
+                            });
+                        }} 
+                        className="bg-blue-600"
+                        disabled={isFiltering}
+                    >
+                        {isFiltering ? <Loader2 className="animate-spin" size={18} /> : <span className="flex items-center gap-1">Next <ArrowRight size={18} /></span>}
+                    </Button>
+                </div>
+            )}>
+                <FilterForm filters={filters} setFilters={setFilters} />
+
+            </Modal>
+
+            <Modal isOpen={isSaveAudienceModalOpen} onClose={() => setIsSaveAudienceModalOpen(false)} title={saveMode === 'new' ? "Create New Audience" : "Add to Existing Audience"} footer={(
+                <Button 
+                    onClick={() => handleSaveAudience(isEnriched, activeContacts, filterLeadsData, saveMode, selectedAudienceId)} 
+                    className="bg-blue-600" 
+                    disabled={isSavingAudience}
+                >
+                    {isSavingAudience ? <Loader2 className="animate-spin" size={18} /> : (saveMode === 'new' ? 'Complete & Save' : 'Add to Audience')}
+                </Button>
+            )}>
+                <div className="space-y-6 text-left">
+                    {/* Mode Toggle */}
+                    <div className="flex p-1 bg-gray-100 rounded-xl">
+                        <button 
+                            onClick={() => setSaveMode('new')}
+                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${saveMode === 'new' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Create New
+                        </button>
+                        <button 
+                            onClick={() => setSaveMode('existing')}
+                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${saveMode === 'existing' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Add to Existing
+                        </button>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 bg-primary/5 rounded-2xl border border-primary/10">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                                <Users size={20} />
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold text-gray-900">Leads to Save</p>
+                                <p className="text-[10px] font-bold text-primary uppercase tracking-widest">
+                                    {Array.from(new Set([...selectedLeads, ...selectedLeadsInModal])).length > 0 
+                                        ? Array.from(new Set([...selectedLeads, ...selectedLeadsInModal])).length 
+                                        : filterLeadsData.length} Contacts Ready
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {saveMode === 'new' ? (
+                        <>
+                            <Input label="Audience Name" placeholder="e.g., Surat Cafes" value={audienceData.audiance_name} onChange={(e) => setAudienceData({ ...audienceData, audiance_name: e.target.value })} />
+
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase pb-1.5 block">Description</label>
+                                <textarea className="w-full mt-2 p-3 bg-gray-50 border border-gray-100 rounded-xl min-h-[100px]" value={audienceData.discription} onChange={(e) => setAudienceData({ ...audienceData, discription: e.target.value })} />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase">Tags</label>
+                                <div className="flex flex-wrap gap-2 mt-2 mb-3">
+                                    {uiTags.filter(t => t !== 'Enriched' && t !== 'Raw').map((tag, idx) => (
+                                        <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-primary/10 text-primary text-sm font-medium rounded-lg">
+                                            {tag}
+                                            <button
+                                                type="button"
+                                                onClick={() => setUiTags(uiTags.filter(t => t !== tag))}
+                                                className="hover:text-primary/70 focus:outline-none ml-1"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </span>
+                                    ))}
+                                </div>
+                                <Input
+                                    placeholder="Type a tag and press Enter"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            const newTag = e.target.value.trim();
+                                            if (newTag && !uiTags.includes(newTag)) {
+                                                setUiTags([...uiTags, newTag]);
+                                                e.target.value = '';
+                                            }
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </>
+                    ) : (
+                        <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase pb-1.5 block">Select Audience</label>
+                                <div className="relative">
+                                    <select 
+                                        className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none"
+                                        value={selectedAudienceId || ''}
+                                        onChange={(e) => setSelectedAudienceId(e.target.value)}
+                                    >
+                                        <option value="" disabled>Choose an audience...</option>
+                                        {audiences.map((aud) => (
+                                            <option key={aud.id} value={aud.id}>
+                                                {aud.audiance_name || aud.name} ({aud.business_count || aud.businesses?.length || 0} leads)
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                        <ChevronDown size={16} />
+                                    </div>
+                                </div>
+                                {audiences.length === 0 && (
+                                    <p className="text-[10px] text-amber-600 font-bold mt-2 uppercase tracking-tight italic text-center">No existing audiences found. Try creating a new one first.</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </Modal>
+
+            <DeleteModal
+                isOpen={deleteModalState.open}
+                onClose={() => setDeleteModalState({ open: false, type: 'lead', data: null })}
+                type={deleteModalState.type}
+                data={deleteModalState.data}
+                onConfirm={handleDeleteConfirm}
+            />
         </div>
     );
 };

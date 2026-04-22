@@ -1,126 +1,348 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-    ChevronRight,
-    Search,
-    Filter,
-    Download,
-    Star,
-    ChevronLeft,
-    Users,
-    CheckCircle2,
-    Zap,
-    History,
-    X,
-    Plus,
-    ChevronDown,
-    Eye,
-    Trash2
-} from 'lucide-react';
+import React, { useState, useEffect, useContext } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Users, CheckCircle2, Zap, Loader2, Sparkles } from 'lucide-react';
 import Button from '../components/ui/Button';
-import Card from '../components/ui/Card';
-import Modal from '../components/ui/Modal';
-import Input from '../components/ui/Input';
-import Pagination from '../components/ui/Pagination';
+import { AppContext } from '../context/AppContext';
+import Api from '../../scripts/Api';
+import { toast } from 'react-toastify';
+
+// Utilities
+import { exportLeadsCSV } from '../utils/exportCsvHelper';
+
+// Modular Components
+import EnrichedStatsRow from '../components/finalEnrichedLeads/EnrichedStatsRow';
+import EnrichedLeadsTable from '../components/finalEnrichedLeads/EnrichedLeadsTable';
+import SaveAudienceModal from '../components/finalEnrichedLeads/SaveAudienceModal';
+import DeleteConfirmModal from '../components/ui/DeleteConfirmModal';
 
 const FinalEnrichedLeads = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const { leads: contextLeads, adminToken } = useContext(AppContext);
+
+    // ── Helper to extract the core Business/POI ID ────────────────────────────
+    const extractBusinessId = (lead) => {
+        if (!lead) return null;
+        
+        // 1. Prioritize the main 'id' field as it holds the verified business ID 
+        // after enrichment (verified by DB schema).
+        if (lead.id) return lead.id;
+
+        // 2. Fallback to specialized fields (preserved from pre-enrichment search results)
+        const knownId = lead.poi_id || lead.business_id || lead.result_id;
+        if (knownId) return knownId;
+
+        // 3. Robust scan for ANY UUID field (Last resort fallback)
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        for (const [key, value] of Object.entries(lead)) {
+            if (typeof value === 'string' && uuidPattern.test(value)) return value;
+        }
+
+        return null;
+    };
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [audienceData, setAudienceData] = useState({
-        name: '',
-        description: '',
+        audiance_name: '',
+        discription: '',
         icp: '',
-        tags: ['High Priority']
+        tag: 'High Priority'
     });
+    const [uiTags, setUiTags] = useState(['High Priority']);
+    const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
 
+    // Audience Save Additions
+    const [saveMode, setSaveMode] = useState('new');
+    const [selectedAudienceId, setSelectedAudienceId] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+    const [audiences, setAudiences] = useState([]);
+
+    useEffect(() => {
+        if (adminToken) {
+            Api.getAudiences(adminToken).then(res => {
+                if (res) {
+                    setAudiences(Array.isArray(res) ? res : (res.data || res.results || []));
+                }
+            }).catch(err => console.error("Error fetching audiences:", err));
+        }
+    }, [adminToken]);
+
+    useEffect(() => {
+        window.scrollTo(0, 0);
+        const timer = setTimeout(() => window.scrollTo(0, 0), 10);
+        return () => clearTimeout(timer);
+    }, []);
+
+    // ── Delete Modal State ───────────────────────────────────────────────────
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [leadToDelete, setLeadToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    // ── Data Ingestion ────────────────────────────────────────────────────────
+    const locationLeads = location.state?.results || [];
+    const leadsToEnrich = location.state?.leadsToEnrich || [];
+    const [leadsData, setLeadsData] = useState(locationLeads);
+    // Initialize count: check history first, then fallback to (Total - Already showing)
+    const [inProgressCount, setInProgressCount] = useState(
+        location.state?.inProgressCount ?? Math.max(0, leadsToEnrich.length - locationLeads.length)
+    );
+    const queryInfo = location.state?.queryInfo || {};
+    const { user } = useContext(AppContext);
+
+    // ── Real-time WebSocket Enrichment ──────────────────────────────────────────
+    useEffect(() => {
+        if (!user?.admin_id || leadsToEnrich.length === 0) return;
+
+        const baseUrl = import.meta.env.VITE_BASE_URL_DEVELOPMENT || "http://192.168.1.39:8000";
+        const wsUrl = baseUrl.replace('http', 'ws') + `/ws/notifications/${user.admin_id}`;
+        
+        console.log("🔌 [FinalEnrichedLeads] Connecting to Data Stream:", wsUrl);
+        const ws = new WebSocket(wsUrl);
+
+        ws.onmessage = async (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.status === "completed") {
+                    toast.success(`${data.business_name} Enriched!`);
+                    
+                    // 1. Fetch the enrichment JSON to get the business ID (id)
+                    const enrichmentResponse = await Api.getEnrichmentJson(data.job_id, adminToken);
+                    
+                    if (enrichmentResponse && enrichmentResponse.id) {
+                        const businessId = enrichmentResponse.id;
+                        console.log(`🔍 [FinalEnrichedLeads] Fetching full POI details for business: ${businessId}`);
+                        
+                        // 2. Fetch full POI details using the business ID
+                        const fullPoiDetails = await Api.getPoiDetails(businessId, adminToken);
+                        
+                        if (fullPoiDetails) {
+                            // Extract email and website from enrichmentResponse and add it to fullPoiDetails
+                            const aiData = enrichmentResponse?.ai_enrichment_data;
+                            
+                            // Email extraction
+                            const decEmail = aiData?.decision_maker_intelligence?.email_address;
+                            const ownerEmails = aiData?.owner_phone_verification?.business_emails;
+                            const finalEmails = [...(Array.isArray(ownerEmails) ? ownerEmails : []), (decEmail ? decEmail : null)].filter(Boolean);
+                            
+                            // Website extraction (fix for "yes")
+                            const aiWebsite = aiData?.digital_presence_audit?.website?.url;
+                            
+                            // 3. Add the fully detailed object to the table, merging the data
+                            setLeadsData(prev => [...prev, { 
+                                ...fullPoiDetails, 
+                                email: finalEmails.length > 0 ? finalEmails.join(', ') : fullPoiDetails.email,
+                                website: aiWebsite || fullPoiDetails.website,
+                                status: 'Enriched' 
+                            }]);
+                            setInProgressCount(prev => {
+                                const nextVal = Math.max(0, prev - 1);
+                                console.log(`📉 [FinalEnrichedLeads] Count decremented: ${prev} -> ${nextVal}`);
+                                return nextVal;
+                            });
+                        } else {
+                            // Fallback to enrichment response if POI details fail
+                            setLeadsData(prev => [...prev, { ...enrichmentResponse, status: 'Enriched' }]);
+                            setInProgressCount(prev => Math.max(0, prev - 1));
+                        }
+                    } else if (enrichmentResponse) {
+                        // Fallback if no ID found
+                        setLeadsData(prev => [...prev, { ...enrichmentResponse, status: 'Enriched' }]);
+                        setInProgressCount(prev => Math.max(0, prev - 1));
+                    }
+                } else if (data.status === "failed") {
+                    toast.error(`${data.business_name} Failed: ${data.error}`);
+                    setInProgressCount(prev => Math.max(0, prev - 1));
+                }
+            } catch (err) {
+                console.error("❌ WS Parsing Error:", err);
+            }
+        };
+
+        return () => ws.close();
+    }, [user?.admin_id, leadsToEnrich.length, adminToken]);
+
+    // ── Aggressive State Synchronization ──────────────────────────────────────
+    useEffect(() => {
+        const historyResultsLength = location.state?.results?.length || 0;
+        const historyInProgressCount = location.state?.inProgressCount ?? -1;
+        const historyPage = location.state?.currentPage;
+
+        // Sync local state to history if results, progress count, or page changed
+        const needsUpdate = (leadsData.length !== historyResultsLength) || 
+                            (inProgressCount !== historyInProgressCount) ||
+                            (currentPage !== historyPage);
+
+        if (needsUpdate) {
+            console.log("🔄 [FinalEnrichedLeads] Syncing progress to history state:", { 
+                results: leadsData.length, 
+                inProgress: inProgressCount,
+                page: currentPage
+            });
+            navigate(location.pathname, {
+                replace: true,
+                state: {
+                    ...location.state,
+                    leadsToEnrich: inProgressCount === 0 ? [] : (location.state?.leadsToEnrich || []),
+                    results: leadsData,
+                    inProgressCount: inProgressCount,
+                    currentPage: currentPage
+                }
+            });
+        }
+    }, [leadsData, inProgressCount, currentPage, location.pathname, location.state, navigate]);
+
+    // ── Multi-tier De-duplication ─────────────────────────────────────────────
+    const uniqueLeads = [];
+    const seenLeadKeys = new Set();
+    (leadsData || []).forEach(lead => {
+        if (!lead) return;
+        const id = extractBusinessId(lead);
+        const rawName = lead.name || lead.BusinessName || lead.business_name || '';
+        const rawAddr = lead.address || lead.Address || lead.full_address || lead.location || '';
+        const normName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const normAddr = rawAddr.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const nameAddrKey = (normName && normAddr) ? `na-${normName}-${normAddr}` : null;
+        const rawPhone = String(lead.mobile || lead.MobileNumber || lead.phone || '');
+        const normPhone = rawPhone.replace(/\D/g, '');
+        const phoneKey = (normPhone && normPhone.length >= 8) ? `ph-${normPhone}` : null;
+        const rawEmail = lead.email || lead.Email || '';
+        const emailKey = rawEmail ? `em-${rawEmail.toLowerCase().trim()}` : null;
+
+        const isDup = (id && seenLeadKeys.has(id)) ||
+            (nameAddrKey && seenLeadKeys.has(nameAddrKey)) ||
+            (phoneKey && seenLeadKeys.has(phoneKey)) ||
+            (emailKey && seenLeadKeys.has(emailKey));
+
+        if (!isDup) {
+            if (id) seenLeadKeys.add(id);
+            if (nameAddrKey) seenLeadKeys.add(nameAddrKey);
+            if (phoneKey) seenLeadKeys.add(phoneKey);
+            if (emailKey) seenLeadKeys.add(emailKey);
+            uniqueLeads.push(lead);
+        }
+    });
+
+    const leads = uniqueLeads;
+    const totalLeads = leads.length;
+    const verifiedEmails = leads.filter(l => l.email || l.Email || l.verified_email).length;
+    const enrichmentRate = totalLeads > 0
+        ? Math.round((leads.filter(l => l.is_enriched || l.email || l.instagram || l.facebook).length / totalLeads) * 100)
+        : 0;
+
     const stats = [
-        {
-            label: 'Total Contact Leads',
-            value: '1,248',
-            change: '+12%',
-            icon: Users,
-            color: 'text-blue-500',
-            bgColor: 'bg-blue-50'
-        },
-        {
-            label: 'Verified Emails',
-            value: '1,102',
-            change: '+5%',
-            icon: CheckCircle2,
-            color: 'text-green-500',
-            bgColor: 'bg-green-50'
-        },
-        {
-            label: 'Enrichment Rate',
-            value: '94%',
-            change: '+2%',
-            icon: Zap,
-            color: 'text-purple-500',
-            bgColor: 'bg-purple-50'
-        }
+        { label: 'Total Contact Leads', value: totalLeads.toLocaleString(), change: '', icon: Users, color: 'text-blue-500', bgColor: 'bg-blue-50' },
+        { label: 'Verified Emails', value: verifiedEmails.toLocaleString(), change: '', icon: CheckCircle2, color: 'text-green-500', bgColor: 'bg-green-50' },
+        { label: 'Enrichment Rate', value: `${enrichmentRate}%`, change: '', icon: Zap, color: 'text-purple-500', bgColor: 'bg-purple-50' },
     ];
 
-    const leads = [
-        {
-            id: 1,
-            initials: 'AC',
-            initialsColor: 'bg-blue-50 text-blue-500',
-            name: 'Acme Corp',
-            category: 'RETAIL',
-            mobile: '+1 (555) 012-3456',
-            email: 'john.doe@acme.com',
-            rating: 5,
-            status: 'VERIFIED',
-            statusColor: 'bg-green-50 text-green-500'
-        },
-        {
-            id: 2,
-            initials: 'TS',
-            initialsColor: 'bg-blue-50 text-blue-500',
-            name: 'TechStart Inc',
-            category: 'TECHNOLOGY',
-            mobile: '+1 (555) 987-6543',
-            email: 'jane@techstart.io',
-            rating: 5,
-            status: 'ENRICHED',
-            statusColor: 'bg-blue-50 text-blue-500'
-        },
-        {
-            id: 3,
-            initials: 'GS',
-            initialsColor: 'bg-gray-50 text-gray-500',
-            name: 'Global Solutions',
-            category: 'CONSULTING',
-            mobile: '+1 (555) 456-7890',
-            email: 'contact@global.com',
-            rating: 5,
-            status: 'PENDING',
-            statusColor: 'bg-gray-100 text-gray-500'
-        }
-    ];
-
-    const RatingStars = ({ count }) => {
+    // ── Search Filter ──────────────────────────────────────────────────────────
+    const filteredLeads = leads.filter(lead => {
+        const search = searchTerm.toLowerCase();
         return (
-            <div className="flex gap-0.5">
-                {[...Array(5)].map((_, i) => (
-                    <Star
-                        key={i}
-                        size={14}
-                        className={i < count ? "fill-orange-400 text-orange-400" : "text-gray-200"}
-                    />
-                ))}
-            </div>
+            (lead.name || lead.BusinessName || '').toLowerCase().includes(search) ||
+            (lead.email || lead.Email || '').toLowerCase().includes(search) ||
+            (lead.category || lead.industry || '').toLowerCase().includes(search)
         );
-    };
+    });
 
     const startIndex = (currentPage - 1) * itemsPerPage;
-    const currentLeads = leads.slice(startIndex, startIndex + itemsPerPage);
+    const currentLeads = filteredLeads.slice(startIndex, startIndex + itemsPerPage);
+
+    // ── Save Audience ─────────────────────────────────────────────────────────
+    const handleSaveAudience = async () => {
+        const ids = (filteredLeads || []).map(l => {
+            const bizId = extractBusinessId(l);
+            console.log(`📍 [Audience] Mapping lead '${l.name || 'N/A'}' to ID: ${bizId}`, l);
+            return bizId;
+        }).filter(Boolean);
+        
+        if (ids.length === 0) {
+            toast.error("No contacts available to save.");
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            if (saveMode === 'existing') {
+                if (!selectedAudienceId) {
+                    toast.error("Please select an existing audience.");
+                    setIsSaving(false);
+                    return;
+                }
+                const response = await Api.addLeadsToExistingAudience(selectedAudienceId, ids, adminToken);
+                if (response) {
+                    setIsModalOpen(false);
+                    setSaveMode('new');
+                    setSelectedAudienceId('');
+                    navigate('/audience-list');
+                }
+            } else {
+                if (!audienceData.audiance_name) {
+                    toast.error("Audience name is required.");
+                    setIsSaving(false);
+                    return;
+                }
+                const payload = {
+                    audiance_name: audienceData.audiance_name,
+                    discription: audienceData.discription,
+                    icp: audienceData.icp,
+                    tag: uiTags.join(', '),
+                    business_ids: ids
+                };
+                const response = await Api.saveAudience(payload, adminToken);
+                console.log("Audience saved successfully with IDs:", ids.length);
+                if (response) {
+                    setIsModalOpen(false);
+                    setAudienceData({ audiance_name: '', discription: '', icp: '', tag: '' });
+                    setUiTags(['High Priority']);
+                    navigate('/audience-list');
+                }
+            }
+        } catch (error) {
+            console.error('Error saving audience:', error);
+            toast.error("Failed to save audience");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // ── Delete Functionality ──────────────────────────────────────────────────
+    const handleDeleteClick = (lead) => {
+        setLeadToDelete(lead);
+        setIsDeleteModalOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!leadToDelete) return;
+        
+        const backendId = extractBusinessId(leadToDelete);
+        if (!backendId) {
+            console.error("No ID found for deletion");
+            return;
+        }
+
+        setIsDeleting(true);
+        try {
+            console.log(`📡 Deleting enriched lead: ${backendId}`);
+            const success = await Api.deleteEnrichedLead(backendId, adminToken);
+            if (success) {
+                // Update local state
+                setLeadsData(prev => prev.filter(l => extractBusinessId(l) !== backendId));
+                setIsDeleteModalOpen(false);
+                setLeadToDelete(null);
+            }
+        } catch (error) {
+            console.error("Delete Error:", error);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     return (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-10">
-            {/* Header section */}
+        <div className="animate-in fade-in duration-700 space-y-8 pb-10">
+            {/* Page Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 leading-tight">Final Enriched Leads</h1>
@@ -128,106 +350,22 @@ const FinalEnrichedLeads = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {stats.map((stat, i) => (
-                    <Card key={i} className="p-4 border border-gray-100 shadow-sm bg-white rounded-[24px]">
-                        <div className="flex items-center gap-6">
-                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${stat.bgColor} ${stat.color} shrink-0`}>
-                                <stat.icon size={28} />
-                            </div>
-                            <div className="space-y-1">
-                                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest leading-none">{stat.label}</p>
-                                <div className="flex items-center gap-2">
-                                    <p className="text-2xl font-bold text-gray-900 leading-none">{stat.value}</p>
-                                    <span className="text-[10px] font-bold text-green-500">{stat.change}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </Card>
-                ))}
-            </div>
+            <EnrichedStatsRow stats={stats} />
 
-            {/* Table Container */}
-            <Card noPadding className="overflow-hidden border-none shadow-sm rounded-2xl bg-white">
-                {/* Table Header Controls */}
-                <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <h2 className="text-lg font-bold text-gray-900">Leads Preview</h2>
-                    <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="bg-white px-4 border-gray-100 text-gray-600 font-bold flex items-center gap-2">
-                            <Filter size={16} /> Filter
-                        </Button>
-                        <Button variant="outline" size="sm" className="bg-white px-4 border-gray-100 text-gray-600 font-bold flex items-center gap-2">
-                            <Download size={16} /> Export
-                        </Button>
-                    </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead>
-                            <tr className="text-left text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">
-                                <th className="px-8 py-5">BUSINESS NAME</th>
-                                <th className="px-8 py-5">CONTACT MOBILE</th>
-                                <th className="px-8 py-5">EMAIL ADDRESS</th>
-                                <th className="px-8 py-5">LEAD RATING</th>
-                                <th className="px-8 py-5">STATUS</th>
-                                <th className="px-8 py-5 text-right">ACTION</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {currentLeads.map((lead) => (
-                                <tr key={lead.id} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors">
-                                    <td className="px-8 py-5">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs ${lead.initialsColor}`}>
-                                                {lead.initials}
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-gray-900 text-sm">{lead.name}</p>
-                                                <p className="text-[10px] font-bold text-gray-400 tracking-tight">{lead.category}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-5 text-sm font-bold text-gray-600">
-                                        {lead.mobile}
-                                    </td>
-                                    <td className="px-8 py-5 text-sm font-medium text-gray-500">
-                                        {lead.email}
-                                    </td>
-                                    <td className="px-8 py-5">
-                                        <RatingStars count={lead.rating} />
-                                    </td>
-                                    <td className="px-8 py-5 text-sm">
-                                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-tighter ${lead.statusColor}`}>
-                                            {lead.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-8 py-5 text-right">
-                                        <div className="flex items-center justify-end gap-3 text-gray-300">
-                                            <button
-                                                className="p-2 hover:text-primary transition-colors hover:bg-primary/5 rounded-lg active:scale-90"
-                                                onClick={() => navigate('/lead-details')}
-                                            >
-                                                <Eye size={18} />
-                                            </button>
-                                            <button className="p-2 hover:text-red-500 transition-colors hover:bg-red-50 rounded-lg active:scale-90">
-                                                <Trash2 size={18} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                <Pagination
-                    currentPage={currentPage}
-                    totalItems={leads.length}
-                    itemsPerPage={itemsPerPage}
-                    onPageChange={setCurrentPage}
-                />
-            </Card>
+            <EnrichedLeadsTable
+                filteredLeads={filteredLeads}
+                currentLeads={currentLeads}
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                onExportCSV={() => exportLeadsCSV(leads)}
+                currentPage={currentPage}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                navigate={navigate}
+                queryInfo={queryInfo}
+                leads={leads}
+                onDeleteLead={handleDeleteClick}
+            />
 
             {/* Action Bar */}
             <div className="flex justify-end pt-4">
@@ -238,104 +376,84 @@ const FinalEnrichedLeads = () => {
                     Save Audience
                 </Button>
             </div>
-            {/* Create New Audience Modal */}
-            <Modal
+
+            <SaveAudienceModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                title="Create New Audience"
-                footer={(
-                    <>
-                        <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="px-8 py-2.5 text-sm font-bold text-gray-500 hover:bg-gray-50 rounded-xl">
-                            Cancel
-                        </Button>
-                        <Button
-                            className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-100 transition-all active:scale-95"
-                            onClick={() => setIsModalOpen(false)}
-                        >
-                            Create Audience
-                        </Button>
-                    </>
-                )}
-            >
-                <div className="space-y-6">
-                    <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-gray-900 flex items-center gap-1">
-                            Audience Name <span className="text-red-500">*</span>
-                        </label>
-                        <Input
-                            placeholder="e.g., Surat Cafes Oct 2023"
-                            value={audienceData.name}
-                            onChange={(e) => setAudienceData({ ...audienceData, name: e.target.value })}
-                            className="bg-white border-gray-200 py-3 px-4 focus:ring-primary/10 transition-all"
-                        />
-                    </div>
+                audienceData={audienceData}
+                setAudienceData={setAudienceData}
+                uiTags={uiTags}
+                setUiTags={setUiTags}
+                onSave={handleSaveAudience}
+                audiences={audiences}
+                saveMode={saveMode}
+                setSaveMode={setSaveMode}
+                selectedAudienceId={selectedAudienceId}
+                setSelectedAudienceId={setSelectedAudienceId}
+                isSaving={isSaving}
+                leadsCount={filteredLeads.length}
+            />
 
-                    <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-gray-900">
-                            Description
-                        </label>
-                        <textarea
-                            placeholder="Add a brief description to help your team understand this audience segment..."
-                            className="w-full min-h-[100px] p-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/10 transition-all resize-none"
-                            value={audienceData.description}
-                            onChange={(e) => setAudienceData({ ...audienceData, description: e.target.value })}
-                        />
-                    </div>
+            <DeleteConfirmModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={handleConfirmDelete}
+                isDeleting={isDeleting}
+                title="Delete Enriched Lead?"
+                description={`Are you sure you want to delete ${leadToDelete?.name || 'this lead'}? This action cannot be undone.`}
+            />
 
-                    <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-gray-900 flex items-center gap-1">
-                            Select ICP to be matched <span className="text-gray-400 font-medium">(Optional)</span>
-                        </label>
-                        <div className="relative">
-                            <select
-                                className="w-full h-12 px-4 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/10 appearance-none cursor-pointer"
-                                value={audienceData.icp}
-                                onChange={(e) => setAudienceData({ ...audienceData, icp: e.target.value })}
-                            >
-                                <option value="" disabled>Select an Ideal Customer Profile...</option>
-                                <option value="surat-cafes">Surat Cafes</option>
-                                <option value="retailers">Retailers India</option>
-                            </select>
-                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                                <ChevronDown size={18} />
+            {/* Enrichment Progress UI */}
+            {inProgressCount > 0 && (
+                leadsData.length === 0 ? (
+                    /* Stage 1: Initial Centered Modal before first result */
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-white/60 backdrop-blur-md transition-opacity duration-300"></div>
+                        <div className="relative bg-white border border-blue-100 p-10 rounded-[2.5rem] shadow-2xl shadow-blue-900/10 flex flex-col items-center text-center max-w-sm w-full animate-in zoom-in-95 duration-500">
+                            <div className="relative mb-8">
+                                <div className="absolute inset-0 bg-blue-500/10 blur-2xl rounded-full scale-[1.5] animate-pulse"></div>
+                                <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[1.5rem] flex items-center justify-center text-white shadow-xl shadow-blue-500/20 relative z-10">
+                                    <Loader2 size={40} className="animate-spin" />
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 mb-2">
+                                <Sparkles size={16} className="text-blue-600" />
+                                <p className="text-xs font-black text-blue-600 uppercase tracking-widest leading-none">AI Engine Triggered</p>
+                            </div>
+                            <h3 className="text-2xl font-black text-gray-900 leading-tight mb-2">Analyzing Intelligence...</h3>
+                            <p className="text-sm font-medium text-gray-500 leading-relaxed mb-6">
+                                We are scouring profiles, websites, and databases. First result arriving shortly.
+                            </p>
+                            <div className="bg-blue-50 text-blue-700 font-bold text-sm px-6 py-3 rounded-xl border border-blue-100 w-full">
+                                {inProgressCount} businesses in queue
                             </div>
                         </div>
                     </div>
-
-                    <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-gray-900">
-                            Tags
-                        </label>
-                        <div className="flex flex-wrap items-center gap-2 p-3 bg-white border border-gray-200 rounded-xl min-h-[50px]">
-                            {audienceData.tags.map((tag, i) => (
-                                <span key={i} className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-lg group animate-in zoom-in-95">
-                                    {tag}
-                                    <button
-                                        onClick={() => setAudienceData({ ...audienceData, tags: audienceData.tags.filter((_, idx) => idx !== i) })}
-                                        className="hover:text-blue-800"
-                                    >
-                                        <X size={12} />
-                                    </button>
-                                </span>
-                            ))}
-                            <input
-                                placeholder="Type and press Enter..."
-                                className="flex-1 bg-transparent border-none text-sm outline-none min-w-[150px] placeholder:text-gray-400"
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && e.target.value.trim()) {
-                                        setAudienceData({
-                                            ...audienceData,
-                                            tags: [...audienceData.tags, e.target.value.trim()]
-                                        });
-                                        e.target.value = '';
-                                    }
-                                }}
-                            />
+                ) : (
+                    /* Stage 2: Mini Progress Overlay after first result */
+                    <div className="fixed bottom-10 right-10 z-50 animate-in slide-in-from-bottom-10 fade-in duration-500">
+                        <div className="bg-white/80 backdrop-blur-xl border border-blue-100 p-6 rounded-[2rem] shadow-2xl shadow-blue-900/10 flex items-center gap-6 min-w-[320px]">
+                            <div className="relative">
+                                <div className="absolute inset-0 bg-blue-500/10 blur-xl rounded-full scale-150 animate-pulse"></div>
+                                <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center text-white shadow-lg relative z-10">
+                                    <Loader2 size={28} className="animate-spin" />
+                                </div>
+                            </div>
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <Sparkles size={14} className="text-blue-600" />
+                                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest leading-none">AI Engine Active</p>
+                                </div>
+                                <h4 className="text-lg font-black text-gray-900 leading-tight">Enriching Leads...</h4>
+                                <div className="mt-1 flex items-end gap-2">
+                                    <div className="text-xl font-black text-blue-600">{inProgressCount}</div>
+                                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-tight mb-1">Remaining in queue</div>
+                                </div>
+                            </div>
                         </div>
-                        <p className="text-[10px] text-gray-400 font-medium mt-1">Use tags to organize and filter audiences later.</p>
                     </div>
-                </div>
-            </Modal>
+                )
+            )}
         </div>
     );
 };

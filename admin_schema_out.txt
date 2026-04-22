@@ -1,0 +1,71 @@
+{
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+    },
+    "admin_id": {
+      "type": "string",
+      "title": "Admin Id"
+    },
+    "admin_name": {
+      "type": "string",
+      "title": "Admin Name"
+    },
+    "admin_email": {
+      "type": "string",
+      "format": "email",
+      "title": "Admin Email"
+    },
+    "phone_number": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Phone Number"
+    },
+    "created_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Created At"
+    },
+    "updated_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Updated At"
+    },
+    "is_active": {
+      "type": "boolean",
+      "title": "Is Active",
+      "default": true
+    }
+  },
+  "type": "object",
+  "required": [
+    "id",
+    "admin_id",
+    "admin_name",
+    "admin_email"
+  ],
+  "title": "AdminResponse",
+  "description": "Admin response schema."
+}

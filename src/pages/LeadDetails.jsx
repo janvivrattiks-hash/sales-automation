@@ -1,53 +1,235 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import {
-    ChevronRight,
-    Trash2,
-    Users,
-    Star,
-    Eye,
-    Trash,
-    ChevronLeft,
-    Sparkles,
-    Loader2,
-    Search
-} from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Users, Search, Loader2, Trash2 } from 'lucide-react';
 import Button from '../components/ui/Button';
-import Card from '../components/ui/Card';
+import Api from '../../scripts/Api';
+import { useApp } from '../context/AppContext';
+
+// Modular Components
+import SingleLeadDetail from '../components/leadDetails/SingleLeadDetail';
+import LeadDetailsHeader from '../components/leadDetails/LeadDetailsHeader';
+import LeadDetailsStats from '../components/leadDetails/LeadDetailsStats';
+import LeadDetailsTable from '../components/leadDetails/LeadDetailsTable';
+
+import { hasRealOwnerName, deepGet } from '../utils/contactUtils';
 
 const LeadDetails = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const [loading, setLoading] = useState(!location.state);
-    const [leadData, setLeadData] = useState(null);
+    const { adminToken } = useApp();
 
+    const [leadData, setLeadData] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [processingLeadId, setProcessingLeadId] = useState(null); // Track which lead is processing
+    const [showProcessingPopup, setShowProcessingPopup] = useState(false); // Only show popup when clicked during processing
+    const loadingLeadIdRef = useRef(null); // Synchronous ref to prevent concurrent calls
+    const [deleteModal, setDeleteModal] = useState({ open: false, lead: null });
+    const [deleteSearchModalOpen, setDeleteSearchModalOpen] = useState(false);
+
+    // Normalize leads by adding unique IDs and extracting any available identifiers
     useEffect(() => {
-        console.log("Lead Details Location State:", location.state);
+        console.log("📍 [LeadDetails] Received location state:", location.state);
+
         if (location.state?.results) {
+            // Use leads as-is from backend - NO normalization, NO fake IDs
+            const results = Array.isArray(location.state.results) ? location.state.results : [];
+
+            console.log("✅ [LeadDetails] Using leads directly from backend (no normalization):", results);
+
             setLeadData({
-                leads: location.state.results,
+                leads: results,
                 ...(location.state.queryInfo || {})
             });
-            setLoading(false);
-        } else {
-            setLoading(false);
         }
     }, [location.state]);
 
-    // Extract properties safely from leadData
-    const queryValue = leadData?.query || 'N/A';
-    const cityValue = leadData?.city || 'N/A';
-    const areaValue = leadData?.area || 'N/A';
-    const leads = leadData?.leads || [];
-    const totalLeadsCount = leads.length;
+    // ── Handlers ──────────────────────────────────────────────────────────────
+    
+    // Helper function to extract backend UUID from lead object
+    const extractBackendId = (lead) => {
+        if (!lead) return null;
 
-    const stats = [
-        { label: 'SEARCH QUERY', value: queryValue },
-        { label: 'CITY', value: cityValue },
-        { label: 'AREA', value: areaValue },
-        { label: 'TOTAL LEADS', value: totalLeadsCount.toString(), icon: Users },
-    ];
+        // Use deepGet with all possible UUID keys
+        const id = deepGet(lead, ['id', 'result_id', 'business_information_id', 'lead_id', 'search_id']);
+        if (id) return id;
 
+        // FALLBACK: Search for ANY UUID field in the object manually
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+        for (const [key, value] of Object.entries(lead)) {
+            if (typeof value === 'string' && uuidPattern.test(value)) {
+                return value;
+            }
+        }
+        return null;
+    };
+
+    const handleViewLead = useCallback(async (lead) => {
+        console.log("🔵 [handleViewLead] Called with lead:", lead?.name || 'Unknown');
+
+        if (!lead) {
+            console.error("❌ [handleViewLead] Lead object is null/undefined");
+            return;
+        }
+
+        // **STEP 1: Attempt to find backend UUID in lead object**
+        const backendUuid = extractBackendId(lead);
+        console.log("🔍 [handleViewLead] Backend UUID extracted:", backendUuid);
+
+        // **CASE 1: Owner Name IS AVAILABLE in current lead object - Data is PROCESSED**
+        if (hasRealOwnerName(lead)) {
+            console.log("✅ [LeadDetails] CASE 1: Owner name found in current lead. Showing detail view.");
+            // Push a new history entry so browser back returns to the list
+            navigate('/lead-details', {
+                state: { ...location.state, selectedLead: lead },
+            });
+            return;
+        }
+
+        console.log("⏳ [LeadDetails] Owner name is 'N/A' or empty - Checking for backend UUID");
+
+        // **CASE 2: No backend UUID found - Data not ready for API call**
+        if (!backendUuid) {
+            console.log("⚠️  [LeadDetails] CASE 2: No backend UUID found - Cannot fetch from API");
+            setShowProcessingPopup(true);
+            setTimeout(() => setShowProcessingPopup(false), 3000);
+            return;
+        }
+
+        // **CASE 3: Backend UUID IS FOUND - FETCH FRESH DATA FROM DATABASE**
+        console.log("🔄 [LeadDetails] CASE 3: Backend UUID found - Fetching fresh data from database");
+
+        try {
+            setProcessingLeadId(backendUuid);
+            console.log("📡 [LeadDetails] Making API call to get fresh lead data (cache bypass enabled)...");
+
+            // Call getLeadById with the backend UUID and cache bypass
+            let apiResponse = await Api.getLeadById(backendUuid, adminToken, true);
+
+            // Unwrap API response
+            let freshLeadData = apiResponse;
+            if (apiResponse?.message && apiResponse?.count !== undefined && apiResponse?.data) {
+                freshLeadData = apiResponse.data;
+                console.log("✅ [LeadDetails] Unwrapped API response");
+            }
+
+            if (!freshLeadData) {
+                console.log("⚠️  [LeadDetails] No lead data received");
+                setShowProcessingPopup(true);
+                setTimeout(() => setShowProcessingPopup(false), 3000);
+                return;
+            }
+
+            // **CHECK EXTRACTED DATA FOR OWNER_NAME**
+            if (hasRealOwnerName(freshLeadData)) {
+                console.log("✅ [LeadDetails] Fresh API data has owner_name. Showing detail view.");
+                // Push a new history entry so browser back returns to the list
+                navigate('/lead-details', {
+                    state: { ...location.state, selectedLead: freshLeadData },
+                });
+            } else {
+                console.log("⏳ [LeadDetails] Fresh API data still has no owner_name - Show popup");
+                setShowProcessingPopup(true);
+                setTimeout(() => setShowProcessingPopup(false), 3000);
+            }
+        } catch (error) {
+            console.error("❌ [handleViewLead] Error fetching fresh lead data:", error);
+            setShowProcessingPopup(true);
+            setTimeout(() => setShowProcessingPopup(false), 3000);
+        } finally {
+            setProcessingLeadId(null);
+        }
+    }, [adminToken]);
+
+    const handleDeleteConfirm = useCallback(async () => {
+        const lead = deleteModal.lead;
+        const backendUuid = extractBackendId(lead);
+
+        if (!backendUuid) {
+            console.error("❌ [handleDeleteConfirm] No backend UUID found");
+            setDeleteModal({ open: false, lead: null });
+            return;
+        }
+
+        try {
+            const response = await Api.deleteLead(backendUuid, adminToken);
+            if (response) {
+                setLeadData(prev => ({
+                    ...prev,
+                    leads: prev.leads.filter(l => extractBackendId(l) !== backendUuid)
+                }));
+                // Show success toast
+                console.log("Lead deleted successfully from backend");
+                setDeleteModal({ open: false, lead: null });
+            }
+        } catch (error) {
+            console.error('Error deleting lead:', error);
+        }
+    }, [deleteModal.lead, adminToken]);
+
+    const handleDeleteSearch = useCallback(async () => {
+        // Try all possible locations for job_id
+        const jobId = location.state?.queryInfo?.job_id ||
+            location.state?.job_id ||
+            leadData?.job_id;
+
+        console.log("🔍 [handleDeleteSearch] attempting to delete with jobId:", jobId);
+
+        if (!jobId) {
+            console.error("❌ [handleDeleteSearch] No job_id found");
+            alert("No Job ID found for this search. Please try re-opening the search from Search History.");
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const response = await Api.deleteJob(jobId, adminToken);
+            if (response) {
+                console.log("✅ Search job deleted successfully");
+                setDeleteSearchModalOpen(false);
+                navigate('/search-history', { replace: true });
+            }
+        } catch (error) {
+            console.error("❌ Error deleting search job:", error);
+        } finally {
+            setLoading(false);
+        }
+    }, [location.state?.queryInfo?.job_id, location.state?.job_id, leadData, adminToken, navigate]);
+
+    // ── Single Lead View ─────────────────────────────────────────────────────
+    // Check location state for a selected lead (pushed by handleViewLead navigate)
+    const activeLead = location.state?.selectedLead || location.state?.singleLead;
+
+    // Scroll to top whenever the active lead (detail view) changes
+    useEffect(() => {
+        if (activeLead) {
+            window.scrollTo(0, 0);
+        }
+    }, [activeLead]);
+
+    if (activeLead) {
+        return (
+            <SingleLeadDetail
+                lead={activeLead}
+                onBack={() => {
+                    // Go back explicitly with full state preservation
+                    if (location.state?.backUrl) {
+                        navigate(location.state.backUrl, {
+                            state: {
+                                ...location.state,
+                                selectedLead: null,
+                                singleLead: null
+                            }
+                        });
+                    } else {
+                        navigate(-1);
+                    }
+                }}
+            />
+        );
+    }
+
+    // ── Loading state ─────────────────────────────────────────────────────────
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 py-20">
@@ -57,6 +239,7 @@ const LeadDetails = () => {
         );
     }
 
+    // ── Empty state ───────────────────────────────────────────────────────────
     if (!leadData && !loading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] text-gray-500 space-y-6 py-20">
@@ -74,133 +257,72 @@ const LeadDetails = () => {
         );
     }
 
+    // ── Derived data ──────────────────────────────────────────────────────────
+    const queryValue = leadData?.niche || 'N/A';
+    const cityValue = leadData?.city || 'N/A';
+    const areaValue = leadData?.area || 'N/A';
+    const leads = leadData?.leads || [];
+
+    const stats = [
+        { label: 'SEARCH QUERY', value: queryValue },
+        { label: 'CITY', value: cityValue },
+        { label: 'AREA', value: areaValue },
+        { label: 'TOTAL LEADS', value: leads.length.toString(), icon: Users },
+    ];
+
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8 pb-32">
-            {/* Breadcrumbs */}
-            <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">
-                <button onClick={() => navigate('/lead-generator')} className="hover:text-primary transition-colors">LEAD GENERATOR</button>
-                <ChevronRight size={10} />
-                <span className="text-gray-900">SEARCH DETAILS</span>
-            </div>
+            <LeadDetailsHeader
+                navigate={navigate}
+                leads={leads}
+                queryValue={queryValue}
+                cityValue={cityValue}
+                areaValue={areaValue}
+                jobId={location.state?.queryInfo?.job_id || location.state?.job_id || leadData?.job_id}
+                onDeleteSearch={() => setDeleteSearchModalOpen(true)}
+            />
 
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Search Details</h1>
-                    <p className="text-gray-500 text-sm mt-1">View and manage the results of your lead generation query.</p>
-                </div>
-                <button className="flex items-center gap-2 px-4 py-2 border border-red-100 text-red-500 rounded-lg hover:bg-red-50 transition-colors text-sm font-bold">
-                    <Trash2 size={16} />
-                    Delete Search
-                </button>
-            </div>
+            <LeadDetailsStats stats={stats} />
 
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {stats.map((stat) => (
-                    <Card key={stat.label} noPadding className="p-4" >
-                        <div className="flex items-center justify-between">
-                            <div className="space-y-1">
-                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{stat.label}</p>
-                                <p className="text-xl font-bold text-gray-900">{stat.value}</p>
-                            </div>
-                            {stat.icon && (
-                                <div className="text-gray-200">
-                                    <stat.icon size={36} />
-                                </div>
-                            )}
-                        </div>
-                    </Card>
-                ))}
-            </div>
+            <LeadDetailsTable
+                leads={leads}
+                processingLeadId={processingLeadId}
+                onViewLead={handleViewLead}
+                onDeleteLead={(lead) => setDeleteModal({ open: true, lead })}
+            />
 
-            {/* Results Table */}
-            <Card noPadding className="overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full min-w-[800px] md:min-w-full">
-                        <thead>
-                            <tr className="text-left text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">
-                                <th className="px-8 py-5">Business Name</th>
-                                <th className="px-8 py-5">Contact Mobile</th>
-                                <th className="px-8 py-5">Email</th>
-                                <th className="px-8 py-5">Rating</th>
-                                <th className="px-8 py-5">Status</th>
-                                <th className="px-8 py-5">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {leads.map((lead, index) => (
-                                <tr key={lead.id || index} className="group hover:bg-primary/[0.02] even:bg-gray-100/40 transition-colors">
-                                    <td className="px-8 py-6">
-                                        <span className="font-bold text-gray-900">{lead.name || lead.BusinessName || 'N/A'}</span>
-                                    </td>
-                                    <td className="px-8 py-6">
-                                        <span className="text-xs font-medium text-gray-500">{lead.phone || lead.MobileNumber || 'N/A'}</span>
-                                    </td>
-                                    <td className="px-8 py-6">
-                                        <span className="text-sm text-gray-600">{lead.email || 'N/A'}</span>
-                                    </td>
-                                    <td className="px-8 py-6">
-                                        <div className="flex items-center gap-0.5">
-                                            {[...Array(5)].map((_, i) => (
-                                                <Star
-                                                    key={i}
-                                                    size={14}
-                                                    className={i < (lead.rating || 0) ? 'text-yellow-400' : 'text-gray-200'}
-                                                    fill={i < (lead.rating || 0) ? 'currentColor' : 'none'}
-                                                />
-                                            ))}
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-6">
-                                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${lead.status === 'Active' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'
-                                            }`}>
-                                            {lead.status || 'New'}
-                                        </span>
-                                    </td>
-                                    <td className="px-8 py-6 text-right">
-                                        <div className="flex items-center justify-end gap-4">
-                                            <button className="text-gray-400 hover:text-primary transition-colors">
-                                                <Eye size={18} />
-                                            </button>
-                                            <button className="text-gray-400 hover:text-red-500 transition-colors">
-                                                <Trash size={18} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+            {deleteModal.open && (
+                <DeleteLeadModal
+                    lead={deleteModal.lead}
+                    onCancel={() => setDeleteModal({ open: false, lead: null })}
+                    onConfirm={handleDeleteConfirm}
+                />
+            )}
 
-                {leads.length > 0 && (
-                    <div className="px-8 py-5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between bg-white/50 gap-4">
-                        <p className="text-xs font-bold text-gray-400">
-                            Showing <span className="text-gray-900">1</span> to <span className="text-gray-900">{leads.length}</span> of <span className="text-gray-900">{leads.length}</span> results
-                        </p>
-                        <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" className="px-4 text-xs font-bold disabled:opacity-50" disabled>
-                                Previous
-                            </Button>
-                            <Button variant="outline" size="sm" className="px-4 text-xs font-bold">
-                                Next
-                            </Button>
-                        </div>
+            {deleteSearchModalOpen && (
+                <DeleteSearchModal
+                    job={{ query_name: leadData?.niche || 'this entire search' }}
+                    onCancel={() => setDeleteSearchModalOpen(false)}
+                    onConfirm={handleDeleteSearch}
+                />
+            )}
+
+            {/* Simple Processing Popup */}
+            {showProcessingPopup && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/40" onClick={() => setShowProcessingPopup(false)} />
+                    <div className="relative bg-white rounded-xl shadow-lg p-6 max-w-sm animate-in fade-in zoom-in-95 duration-200">
+                        <h3 className="text-lg font-bold text-gray-900">Data Processing</h3>
+                        <p className="text-sm text-gray-500 mt-2">This lead is currently being processed. Please try again in a moment.</p>
+                        <button
+                            onClick={() => setShowProcessingPopup(false)}
+                            className="mt-4 w-full px-4 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
+                        >
+                            OK
+                        </button>
                     </div>
-                )}
-            </Card>
-
-            {/* Enrich Data Button */}
-            <div className="flex justify-end">
-                <Button
-                    onClick={() => navigate('/enrich')}
-                    className="px-10 shadow-2xl shadow-primary/30 text-lg"
-                >
-                    <Sparkles size={20} fill="currentColor" />
-                    Enrich Data
-                </Button>
-            </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -1,22 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, Search, Settings, ChevronDown, User, LogOut, CheckCircle, Menu } from 'lucide-react';
+import { Search, Settings, ChevronDown, User, LogOut, Menu } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useNavigate } from 'react-router-dom';
+import NotificationCenter from '../ui/NotificationCenter';
+import useNotifications from '../../hooks/useNotifications';
 
 const Navbar = ({ onLogout }) => {
-    const { user, notifications, sidebarOpen, setSidebarOpen } = useApp();
-    const [showNotifications, setShowNotifications] = useState(false);
+    const { user, sidebarOpen, setSidebarOpen, adminToken } = useApp();
+    const navigate = useNavigate();
+    const { 
+        notifications, 
+        unreadCount, 
+        markAsRead, 
+        markAllAsRead, 
+        loading: isLoadingNotifications 
+    } = useNotifications(user, adminToken);
+
     const [showProfile, setShowProfile] = useState(false);
-
-    const notificationRef = useRef(null);
     const profileRef = useRef(null);
-
-    const unreadCount = notifications.filter(n => n.unread).length;
 
     useEffect(() => {
         const handleClickOutside = (event) => {
-            if (notificationRef.current && !notificationRef.current.contains(event.target)) {
-                setShowNotifications(false);
-            }
             if (profileRef.current && !profileRef.current.contains(event.target)) {
                 setShowProfile(false);
             }
@@ -52,51 +56,13 @@ const Navbar = ({ onLogout }) => {
 
                 <div className="flex items-center gap-6">
                     {/* Notifications */}
-                    <div className="relative" ref={notificationRef}>
-                        <div
-                            className="relative cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors"
-                            onClick={() => setShowNotifications(!showNotifications)}
-                        >
-                            <Bell size={20} className="text-gray-500" />
-                            {unreadCount > 0 && (
-                                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full"></span>
-                            )}
-                        </div>
-
-                        {showNotifications && (
-                            <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                                <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-                                    <h3 className="font-bold text-gray-900">Notifications</h3>
-                                    <span className="text-xs text-primary font-medium cursor-pointer">Mark all as read</span>
-                                </div>
-                                <div className="max-h-[320px] overflow-y-auto">
-                                    {notifications.length > 0 ? (
-                                        notifications.map((n) => (
-                                            <div key={n.id} className="p-4 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0 cursor-pointer">
-                                                <div className="flex gap-3">
-                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${n.unread ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-400'}`}>
-                                                        <CheckCircle size={16} />
-                                                    </div>
-                                                    <div>
-                                                        <p className={`text-sm ${n.unread ? 'font-bold text-gray-900' : 'text-gray-600'}`}>{n.title}</p>
-                                                        <p className="text-xs text-gray-400 mt-0.5">{n.message}</p>
-                                                        <p className="text-[10px] text-gray-300 mt-1 uppercase font-bold tracking-wider">{n.time}</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        <div className="p-8 text-center">
-                                            <p className="text-sm text-gray-400">No new notifications</p>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="p-3 bg-gray-50 text-center border-t border-gray-100">
-                                    <span className="text-xs text-gray-500 font-medium cursor-pointer hover:text-primary transition-colors">View all updates</span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    <NotificationCenter 
+                        notifications={notifications}
+                        unreadCount={unreadCount}
+                        markAsRead={markAsRead}
+                        markAllAsRead={markAllAsRead}
+                        isLoading={isLoadingNotifications}
+                    />
 
                     {/* User Profile */}
                     <div className="relative" ref={profileRef}>
@@ -120,17 +86,32 @@ const Navbar = ({ onLogout }) => {
                         {showProfile && (
                             <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                                 <div className="p-2">
-                                    <button className="flex items-center gap-3 w-full p-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
+                                    <button
+                                        onClick={() => {
+                                            setShowProfile(false);
+                                            navigate('/edit-profile');
+                                        }}
+                                        className="flex items-center gap-3 w-full p-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                                    >
                                         <User size={18} />
                                         <span>Edit Profile</span>
                                     </button>
-                                    <button className="flex items-center gap-3 w-full p-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
+                                    <button
+                                        onClick={() => {
+                                            setShowProfile(false);
+                                            navigate('/settings');
+                                        }}
+                                        className="flex items-center gap-3 w-full p-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                                    >
                                         <Settings size={18} />
                                         <span>Settings</span>
                                     </button>
                                     <div className="my-1 border-t border-gray-100"></div>
                                     <button
-                                        onClick={onLogout}
+                                        onClick={() => {
+                                            setShowProfile(false);
+                                            onLogout();
+                                        }}
                                         className="flex items-center gap-3 w-full p-2.5 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                                     >
                                         <LogOut size={18} />
