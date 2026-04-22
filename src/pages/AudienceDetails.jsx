@@ -12,7 +12,7 @@ import DeleteConfirmModal from '../components/ui/DeleteConfirmModal';
 
 // --- FIELD SCANNER UTILITIES ---
 const PHONE_FIELDS = ['phone', 'MobileNumber', 'phone_number', 'mobile', 'contact_no', 'telephone', 'contact_number', 'mobilenumber', 'cell', 'tel', 'office', 'whatsapp', 'biz_phone', 'business_phone', 'Contact'];
-const EMAIL_FIELDS = ['email', 'Email', 'email_address', 'contact_email', 'work_email', 'primary_email', 'email_addresses', 'biz_email', 'business_email'];
+const EMAIL_FIELDS = ['email', 'Email', 'email_address', 'contact_email', 'work_email', 'primary_email', 'email_addresses', 'biz_email', 'business_email', 'business_emails'];
 const RATING_FIELDS = ['rating', 'Rating', 'stars', 'star_rating', 'average_rating', 'user_ratings_total', 'RatingValue', 'review_score', 'google_rating', 'google_map_rating', 'googleRating', 'avg_rating', 'score', 'lead_rating', 'biz_rating', 'BusinessRating', 'rating_value', 'rating_score', 'starRating'];
 const WEBSITE_FIELDS = ['website', 'Website', 'url', 'site_url', 'business_url', 'link', 'domain'];
 
@@ -43,6 +43,10 @@ const findIn = (obj, fields, recursive = false) => {
     for (const f of fields) {
         const val = obj[f];
         if (val !== undefined && val !== null) {
+            // Check for junk strings
+            const isJunk = typeof val === 'string' && ['n/a', 'na', 'not found', 'none', 'null', 'undefined'].includes(val.toLowerCase().trim());
+            if (isJunk) continue;
+
             // If it's a primitive we want, return it
             if (typeof val === 'string' || typeof val === 'number') return val;
             // If it's an object, it might be { value: 4.5 }
@@ -54,12 +58,22 @@ const findIn = (obj, fields, recursive = false) => {
     }
 
     // 2. Wrap-aware search (one level down for common containers)
-    const wrappers = ['data', 'results', 'lead', 'contact', 'business_information', 'business_info', 'biz_info', 'business', 'search_details', 'analysis_results'];
+    const wrappers = ['data', 'results', 'lead', 'contact', 'business_information', 'business_info', 'biz_info', 'business', 'search_details', 'analysis_results', 'ai_enrichment', 'poi_details'];
     for (const w of wrappers) {
-        if (obj[w] && typeof obj[w] === 'object' && !Array.isArray(obj[w])) {
+        let val = obj[w];
+        
+        // Handle JSON strings
+        if (typeof val === 'string' && val.trim().startsWith('{')) {
+            try { val = JSON.parse(val); } catch (e) { /* ignore */ }
+        }
+
+        if (val && typeof val === 'object' && !Array.isArray(val)) {
             // Search inside wrappers, but don't indefinitely recurse here unless flag is set
             for (const f of fields) {
-                if (obj[w][f] !== undefined && obj[w][f] !== null) return obj[w][f];
+                if (val[f] !== undefined && val[f] !== null) {
+                    const isJunk = typeof val[f] === 'string' && ['n/a', 'na', 'not found', 'none', 'null', 'undefined'].includes(val[f].toLowerCase().trim());
+                    if (!isJunk) return val[f];
+                }
             }
         }
     }
@@ -97,8 +111,8 @@ const normalizeLead = (lead) => {
     // CUSTOM EMAIL LOGIC: Prioritize 'email' then 'email_enrichment', skip "Not found"
     const isValidEmail = (e) => e && typeof e === 'string' && e.toLowerCase() !== 'n/a' && e.toLowerCase() !== 'not found' && e.toLowerCase() !== 'null';
     
-    let email = findIn(lead, EMAIL_FIELDS, false);
-    const emailEnrich = lead.email_enrichment;
+    let email = findIn(lead, EMAIL_FIELDS, false) || (lead.poi_details ? findIn(lead.poi_details, EMAIL_FIELDS, false) : null);
+    const emailEnrich = lead.email_enrichment || lead.business_emails;
 
     if (!isValidEmail(email)) {
         if (isValidEmail(emailEnrich)) {
@@ -108,11 +122,15 @@ const normalizeLead = (lead) => {
         }
     }
 
-    const website = findIn(lead, WEBSITE_FIELDS, false) || '';
+    let website = findIn(lead, WEBSITE_FIELDS, false) || (lead.poi_details ? findIn(lead.poi_details, WEBSITE_FIELDS, false) : '');
+    const isUrl = (val) => typeof val === 'string' && val.includes('.') && val.length > 5 && !['yes', 'no', 'true', 'false', 'unknown'].includes(val.toLowerCase().trim());
+    if (!isUrl(website)) website = '';
     
-    // 2. High-precision recursive rating extraction
-    const rawRating = findIn(lead, RATING_FIELDS, true) || lead.rating || lead.Rating || 0;
-    const finalRating = parseRating(rawRating);
+    // 2. High-precision recursive rating extraction (Prioritize deep data)
+    let rawRating = lead.poi_details?.rating || lead.poi_details?.Rating || findIn(lead, RATING_FIELDS, true);
+    if (rawRating === true || rawRating === 'yes') rawRating = 0;
+    
+    const finalRating = parseRating(rawRating || 0);
     
     const normalizedId = lead.id || lead.result_id || lead.business_information_id || lead.business_id || lead.lead_id || '';
 

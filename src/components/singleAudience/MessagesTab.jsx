@@ -20,6 +20,7 @@ const MessagesTab = ({
     const [isSending, setIsSending] = useState(false);
     const [isConnecting, setIsConnecting] = useState(false);
     const [emailError, setEmailError] = useState('');
+    const [sendingStatus, setSendingStatus] = useState('');
     const [editorContent, setEditorContent] = useState('');
     const [subject, setSubject] = useState('');
 
@@ -116,6 +117,78 @@ const MessagesTab = ({
     const finalRecipientEmail = manualEmail;
     const hasExistingEmail = emailsArray.length > 0 && emailsArray[0] !== 'N/A';
 
+    const triggerGoogleConnect = async (token) => {
+        try {
+            const response = await Api.getGoogleConnectUrl(token);
+            if (response && response.authorization_url) {
+                const width = 600;
+                const height = 700;
+                const left = (window.screen.width / 2) - (width / 2);
+                const top = (window.screen.height / 2) - (height / 2);
+                
+                const popup = window.open(
+                    response.authorization_url,
+                    'GoogleConnect',
+                    `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,status=no,toolbar=no,menubar=no`
+                );
+
+                if (popup) {
+                    toast.info("Please complete the sign-in in the popup window.");
+                    const timer = setInterval(() => {
+                        if (popup.closed) {
+                            clearInterval(timer);
+                            toast.success("Connection check: You can now try sending again!");
+                        }
+                    }, 1000);
+                } else {
+                    window.location.href = response.authorization_url;
+                }
+            } else {
+                toast.error("Failed to generate connection URL.");
+            }
+        } catch (error) {
+            console.error("Connection Error:", error);
+            toast.error("An error occurred while starting the connection.");
+        }
+    };
+
+    const formatEmailBody = (text, subjectStr) => {
+        if (!text) return '';
+        
+        let paragraphs = '';
+        // Check if it's already HTML
+        if (text.includes('<p>') || text.includes('<br') || text.includes('</div>')) {
+            paragraphs = text;
+        } else {
+            // Convert plain text breaks to paragraphs
+            paragraphs = text
+                .split('\n\n')
+                .map(para => para.trim())
+                .filter(para => para.length > 0)
+                .map(para => `<p style="margin-bottom: 1.25rem; font-size: 15px; font-family: 'Inter', -apple-system, sans-serif; line-height: 1.6; color: #374151;">${para.replace(/\n/g, '<br/>')}</p>`)
+                .join('');
+        }
+
+        // If we want it to look exactly like the "Draft" screenshot:
+        let header = '';
+        if (subjectStr) {
+            header = `
+                <div style="margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb;">
+                    <p style="margin: 0; font-weight: 800; font-size: 16px; color: #111827; font-family: 'Inter', sans-serif;">Subject: ${subjectStr}</p>
+                </div>
+            `;
+        }
+
+        return `
+            <div style="padding: 32px; background-color: #ffffff; font-family: 'Inter', -apple-system, sans-serif;">
+                ${header}
+                <div style="color: #374151;">
+                    ${paragraphs}
+                </div>
+            </div>
+        `;
+    };
+
     const handleSendEmail = async () => {
         if (!finalRecipientEmail) {
             setEmailError('Please provide a valid email address.');
@@ -130,14 +203,41 @@ const MessagesTab = ({
 
         try {
             setIsSending(true);
+            setSendingStatus('Verifying email...');
             setEmailError('');
             const token = localStorage.getItem('admin_token');
+
+            // 1. Check if the email was typed manually vs auto-discovered
+            const isManuallyEnteredEmail = !hasExistingEmail || manualEmail !== emailsArray[0];
             
+            if (isManuallyEnteredEmail) {
+                // 2. Call the verify endpoint exclusively for manual entries
+                const verificationResult = await Api.verifyGmailEmail(finalRecipientEmail, token);
+                
+                // 3. Block send if verification failed
+                if (!verificationResult.allowSend) {
+                    setIsSending(false);
+                    setSendingStatus('');
+                    setEmailError(verificationResult.message || "Invalid email address");
+                    return;
+                }
+                
+                // Optional: handle warnings (e.g. uncertain reachability)
+                if (verificationResult.success && verificationResult.message && verificationResult.message.includes("uncertain")) {
+                    console.warn("Email verification warning:", verificationResult.message);
+                }
+            }
+            
+            setSendingStatus('Sending email...');
+            const currentSubject = subject || emailSubject || `Scaling your operations at ${businessName}`;
+            // Format the body for proper HTML email delivery, matching the screenshot layout
+            const finalHtml = formatEmailBody(editorContent || emailBody || '', currentSubject);
+
             const payload = {
-                lead_id: businessId, // Matches backend 'lead_id'
+                lead_id: businessId,
                 recipient_email: finalRecipientEmail,
-                subject: subject || emailSubject || `Scaling your operations at ${businessName}`,
-                content_html: editorContent || emailBody // Backend expects content_html
+                subject: currentSubject,
+                content_html: finalHtml
             };
 
             const response = await Api.sendGmailOutreach(payload, token);
@@ -146,13 +246,29 @@ const MessagesTab = ({
                 setManualEmail('');
             }
         } catch (error) {
-            console.error('Failed to send email:', error);
-            if (error.response?.status === 403) {
-                toast.error("Please connect your Google account first!");
-                // Optionally trigger connect logic
+            console.error('OUTREACH_ERROR_FULL:', error);
+            const status = error.response?.status;
+            const detail = JSON.stringify(error.response?.data || error.message || '');
+            
+            // Aggressive detection for connection issues
+            const isNoConnection = 
+                status === 403 || 
+                /not connected/i.test(detail) || 
+                /403/i.test(detail) || 
+                /google/i.test(detail);
+
+            if (isNoConnection) {
+                const token = localStorage.getItem('admin_token');
+                console.log('Detecting Google Connection required. Status:', status, 'Detail:', detail);
+                toast.warn("Gmail connection required. Opening setup...");
+                setShowEmailModal(false);
+                triggerGoogleConnect(token);
+            } else {
+                toast.error(error.response?.data?.detail || "Failed to send email. Please try again.");
             }
         } finally {
             setIsSending(false);
+            setSendingStatus('');
         }
     };
 
@@ -161,57 +277,28 @@ const MessagesTab = ({
             setIsConnecting(true);
             const token = localStorage.getItem('admin_token');
             
-            // We'll "test" the connection by trying to fetch history or syncing. 
-            // Most reliable way: call the connection URL check or a simple history fetch.
-            // If the user is NOT connected, the backend will return 403.
             try {
+                // Test connection
                 await Api.getGmailLeadHistory(businessId, token);
                 
-                // If we reach here, user is connected. Open the modal.
                 const initialEmail = (emailsArray.length > 0 && emailsArray[0] !== 'N/A') ? emailsArray[0] : '';
                 setManualEmail(initialEmail);
                 setSubject(emailSubject || `Scaling your operations at ${businessName}`);
                 setEditorContent(emailBody || `Hi ${firstName},<br/><br/>I loved your work at ${businessName}...`);
                 setShowEmailModal(true);
             } catch (err) {
-                if (err.response?.status === 403) {
-                    // Not connected, redirect to auth in a popup
-                    const response = await Api.getGoogleConnectUrl(token);
-                    if (response && response.authorization_url) {
-                        const width = 600;
-                        const height = 700;
-                        const left = (window.screen.width / 2) - (width / 2);
-                        const top = (window.screen.height / 2) - (height / 2);
-                        
-                        const popup = window.open(
-                            response.authorization_url,
-                            'GoogleConnect',
-                            `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,status=no,toolbar=no,menubar=no`
-                        );
-
-                        if (popup) {
-                            toast.info("Please complete the sign-in in the popup window.");
-                            // Periodic check to see if popup is closed
-                            const timer = setInterval(() => {
-                                if (popup.closed) {
-                                    clearInterval(timer);
-                                    toast.success("Connection check: You can now try sending again!");
-                                }
-                            }, 1000);
-                        } else {
-                            // Blocked by popup blocker
-                            window.location.href = response.authorization_url;
-                        }
-                    } else {
-                        toast.error("Failed to generate connection URL.");
-                    }
+                const status = err.response?.status;
+                const detail = JSON.stringify(err.response?.data || '');
+                
+                if (status === 403 || /not connected/i.test(detail) || /403/i.test(detail)) {
+                    console.log('Gmail not connected (verified).');
+                    triggerGoogleConnect(token);
                 } else {
-                    // Some other error
                     toast.error("An error occurred while checking connection.");
                 }
             }
         } catch (error) {
-            console.error("Connection Error:", error);
+            console.error("Connection Check Error:", error);
         } finally {
             setIsConnecting(false);
         }
@@ -359,14 +446,17 @@ const MessagesTab = ({
                                     />
                                 </div>
 
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Message Body</label>
-                                    <div className="bg-gray-50 rounded-xl overflow-hidden border-2 border-gray-100 focus-within:border-[#EA4335] transition-all">
-                                        <RichTextEditor 
-                                            value={editorContent}
-                                            onChange={setEditorContent}
-                                            placeholder="Write your email content here..."
-                                        />
+                                <div className="space-y-2 pb-2">
+                                    <div className="p-4 bg-gray-50 rounded-2xl border-2 border-gray-100 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center text-green-600">
+                                                <CheckCircle2 size={16} />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Message Status</p>
+                                                <p className="text-sm font-bold text-gray-800">Draft ready to send</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -394,7 +484,7 @@ const MessagesTab = ({
                                     onClick={handleSendEmail}
                                     isLoading={isSending}
                                 >
-                                    {isSending ? 'Sending...' : 'Send Now'}
+                                    {isSending ? (sendingStatus || 'Sending...') : 'Send Now'}
                                 </Button>
                             </div>
                         </div>

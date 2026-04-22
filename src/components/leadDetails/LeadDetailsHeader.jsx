@@ -2,7 +2,7 @@ import React from 'react';
 import { ChevronRight, Trash2, Sparkles } from 'lucide-react';
 import Button from '../ui/Button';
 
-const LeadDetailsHeader = ({ navigate, leads, queryValue, cityValue, areaValue, onDeleteSearch }) => {
+const LeadDetailsHeader = ({ navigate, leads, queryValue, cityValue, areaValue, onDeleteSearch, jobId }) => {
     return (
         <>
             {/* Breadcrumbs */}
@@ -32,7 +32,12 @@ const LeadDetailsHeader = ({ navigate, leads, queryValue, cityValue, areaValue, 
                         onClick={() => navigate('/enrich', {
                             state: {
                                 results: leads,
-                                queryInfo: { niche: queryValue, city: cityValue, area: areaValue }
+                                queryInfo: { 
+                                    niche: queryValue, 
+                                    city: cityValue, 
+                                    area: areaValue,
+                                    job_id: jobId 
+                                }
                             }
                         })}
                         className="flex items-center gap-2 px-4 py-2 shadow-lg shadow-primary/20"

@@ -15,8 +15,22 @@ const RawRow = ({ lead, index, viewingId, onViewContact, onDelete }) => {
                     {lead.phone || lead.MobileNumber || 'N/A'}
                 </span>
             </td>
-            <td className="px-8 py-6 text-sm font-bold text-gray-500 truncate max-w-[150px]">
-                {lead.email || lead.Email || 'N/A'}
+            <td className="px-8 py-6">
+                <div className="flex flex-col gap-1 text-sm font-bold text-gray-500">
+                    {(() => {
+                        const emailRaw = lead.email || lead.Email;
+                        let emails = [];
+                        if (Array.isArray(emailRaw)) emails = emailRaw;
+                        else if (typeof emailRaw === 'string') emails = emailRaw.split(',').map(e => e.trim()).filter(e => e && e.toLowerCase() !== 'n/a');
+
+                        if (emails.length > 0) {
+                            return emails.map((email, i) => (
+                                <span key={i} className="truncate max-w-[150px]">{email}</span>
+                            ));
+                        }
+                        return <span className="text-gray-300 italic">N/A</span>;
+                    })()}
+                </div>
             </td>
             <td className="px-8 py-6">
                 {(() => {

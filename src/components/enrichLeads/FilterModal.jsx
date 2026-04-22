@@ -77,6 +77,20 @@ const FilterModal = ({ isOpen, onClose, filters, setFilters, onApply, isFilterin
                     </div>
                 </div>
 
+                {/* Category */}
+                <div className="space-y-4">
+                    <label className="text-sm font-bold text-gray-900">Category</label>
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="e.g., Restaurants"
+                            value={filters.category || ''}
+                            onChange={(e) => setFilters(prev => ({ ...prev, category: e.target.value }))}
+                            className="w-full pl-4 pr-4 py-3 bg-white border border-gray-100 rounded-xl text-sm font-medium text-gray-900 focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        />
+                    </div>
+                </div>
+
                 {/* Reviews */}
                 <div className="space-y-4">
                     <label className="text-sm font-bold text-gray-900">Minimum Reviews</label>

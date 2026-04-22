@@ -1,9 +1,9 @@
 import axios from 'axios';
 import { toast } from "react-toastify";
 
-const API_BASE_URL = import.meta.env.VITE_ENV === "DEV"
+const API_BASE_URL = (import.meta.env.VITE_ENV === "PROD" || import.meta.env.VITE_ENV === "PRODUCTION")
     ? import.meta.env.VITE_BASE_URL_PRODUCTION
-    : import.meta.env.VITE_BASE_URL_DEVELOPMENT;
+    : (import.meta.env.VITE_BASE_URL_DEVELOPMENT || "http://127.0.0.1:8000");
 
 // Request deduplication - prevents duplicate API calls
 const requestCache = {}; // Successful response cache
@@ -573,6 +573,54 @@ export default {
         }
     },
 
+    filterByJob: async (jobId, filters, token) => {
+        try {
+            const params = { job_id: jobId };
+            
+            // Map website filter (Yes -> true, No -> false, Any -> omit)
+            if (filters.website === 'Yes') params.website = true;
+            else if (filters.website === 'No') params.website = false;
+            
+            // Map numeric and text filters
+            params.ratings = filters.ratings || filters.minRating || 0;
+            params.reviews = filters.reviews || 0;
+            params.category = filters.category || '';
+
+            const res = await axios.get(`${API_BASE_URL}/search/filter_by_job`, {
+                params,
+                headers: {
+                    "accept": "application/json",
+                    "Authorization": `Bearer ${token}`
+                }
+            });
+            return res.data;
+        } catch (error) {
+            console.error("Filter By Job API Error:", error);
+            return [];
+        }
+    },
+
+    filterEnrichedLeads: async (filters, token) => {
+        try {
+            const res = await axios.get(`${API_BASE_URL}/search/filter_enriched`, {
+                params: {
+                    website: filters.website || 'Any',
+                    ratings: filters.ratings || filters.minRating || 0,
+                    reviews: filters.reviews || 0,
+                    category: filters.category || ''
+                },
+                headers: {
+                    "accept": "application/json",
+                    "Authorization": `Bearer ${token}`
+                }
+            });
+            return res.data;
+        } catch (error) {
+            console.error("Filter Enriched API Error:", error);
+            return [];
+        }
+    },
+
     saveAudience: async (data, token) => {
         try {
             if (!token) {
@@ -629,6 +677,30 @@ export default {
             } else {
                 toast.error("Failed to fetch audiences");
             }
+            return null;
+        }
+    },
+
+    addLeadsToExistingAudience: async (audienceId, businessIds, token) => {
+        try {
+            if (!token || !audienceId) return null;
+            const res = await axios.post(`${API_BASE_URL}/audiance/${audienceId}/businesses`, {
+                business_ids: businessIds
+            }, {
+                headers: {
+                    accept: "application/json",
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+            });
+            if (res.status === 200 || res.status === 201) {
+                toast.success("Leads added to audience successfully!");
+                return res.data;
+            }
+        } catch (error) {
+            console.error("Add to Audience Error:", error);
+            const message = error.response?.data?.detail || "Failed to add leads to audience";
+            toast.error(message);
             return null;
         }
     },
@@ -1492,10 +1564,15 @@ export default {
                 return res.data;
             }
         } catch (error) {
-            if (error.response?.status === 403) {
-                // Not connected to Google - caller should handle this
+            const status = error.response?.status;
+            const detail = error.response?.data?.detail || error.message || '';
+            const isNoConnection = status === 403 || String(detail).includes('403') || /not connected/i.test(String(detail));
+
+            if (isNoConnection) {
+                // Critical: Allow the UI to handle the connection flow
                 throw error;
             }
+            
             const message = error.response?.data?.detail || "Failed to send Gmail outreach";
             toast.error(message);
             return null;
@@ -1724,6 +1801,30 @@ export default {
             const message = error.response?.data?.detail || "Failed to upload document";
             toast.error(message);
             return null;
+        }
+    },
+
+    verifyGmailEmail: async (email, token) => {
+        try {
+            if (!token) return { success: false, allowSend: false, message: "Auth token missing" };
+            const res = await axios.post(`${API_BASE_URL}/outreach/gmail/verify-email`, 
+                { email: email, is_manual_entry: true }, 
+                {
+                    headers: {
+                        accept: "application/json",
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+            return res.data;
+        } catch (error) {
+            console.error("Verification endpoint error:", error);
+            return {
+                success: false,
+                allowSend: false,
+                message: error.response?.data?.detail || "Could not connect to email verification service — please try again"
+            };
         }
     }
 };

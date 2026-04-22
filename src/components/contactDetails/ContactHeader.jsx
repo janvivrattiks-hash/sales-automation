@@ -20,9 +20,9 @@ const ContactHeader = ({ businessName, categoryStr, navigate, location }) => {
                 <button
                     onClick={() => {
                         if (location.state?.backUrl) {
-                            navigate(location.state.backUrl, { state: { audience: location.state.audience } });
+                            navigate(location.state.backUrl, { state: { ...location.state } });
                         } else {
-                            navigate('/contacts', { state: { activeTab: location.state?.fromTab || 'raw' } });
+                            navigate('/contacts', { state: { ...location.state, activeTab: location.state?.fromTab || 'raw' } });
                         }
                     }}
                     className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-all text-sm font-bold active:scale-95 shadow-sm"

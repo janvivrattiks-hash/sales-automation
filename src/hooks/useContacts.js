@@ -3,7 +3,7 @@ import { toast } from 'react-toastify';
 import Api from '../../scripts/Api';
 import { AppContext } from '../context/AppContext';
 
-export const useContacts = (navigate) => {
+export const useContacts = (navigate, location = {}) => {
     const { adminToken } = useContext(AppContext);
 
     // Core Data State
@@ -19,13 +19,13 @@ export const useContacts = (navigate) => {
     const [isSavingAudience, setIsSavingAudience] = useState(false);
 
     // Interaction State
-    const [selectedLeads, setSelectedLeads] = useState([]);
-    const [selectedLeadsInModal, setSelectedLeadsInModal] = useState([]);
+    const [selectedLeads, setSelectedLeads] = useState(location.state?.selectedLeads || []);
+    const [selectedLeadsInModal, setSelectedLeadsInModal] = useState(location.state?.selectedLeadsInModal || []);
     const [viewingId, setViewingId] = useState(null);
     const [deletingId, setDeletingId] = useState(null);
 
     // Filter & Audience Form State
-    const [filters, setFilters] = useState({
+    const [filters, setFilters] = useState(location.state?.filters || {
         website: 'Any',
         ratings: 0,
         category: '',
@@ -155,7 +155,11 @@ export const useContacts = (navigate) => {
     const handleFilter = async (isMainSearch, isEnriched, onSuccess) => {
         setIsFiltering(true);
         try {
-            const response = await Api.filterLeads(filters, adminToken);
+            // Call the specialized endpoint for enriched data if needed
+            const response = isEnriched 
+                ? await Api.filterEnrichedLeads(filters, adminToken)
+                : await Api.filterLeads(filters, adminToken);
+                
             const filteredData = Array.isArray(response) ? response : (response?.data || response?.results || []);
 
             if (isMainSearch) {
@@ -171,11 +175,16 @@ export const useContacts = (navigate) => {
         }
     };
 
-    const handleSaveAudience = async (isEnriched, activeContacts, filterLeadsData) => {
-        if (!audienceData.audiance_name) {
-            console.error("Audience name is required");
+    const handleSaveAudience = async (isEnriched, activeContacts, filterLeadsData, mode = 'new', existingId = null) => {
+        if (mode === 'new' && !audienceData.audiance_name) {
+            toast.error("Audience name is required");
             return;
         }
+        if (mode === 'existing' && !existingId) {
+            toast.error("Please select an existing audience");
+            return;
+        }
+
         setIsSavingAudience(true);
         try {
             const currentSelected = Array.from(new Set([...selectedLeads, ...selectedLeadsInModal]));
@@ -194,6 +203,18 @@ export const useContacts = (navigate) => {
                 return;
             }
 
+            if (mode === 'existing') {
+                const response = await Api.addLeadsToExistingAudience(existingId, ids, adminToken);
+                if (response) {
+                    toast.success(`Successfully added ${ids.length} leads to the audience!`);
+                    setSelectedLeads([]);
+                    setSelectedLeadsInModal([]);
+                    if (navigate) navigate('/audience-list', { replace: true });
+                }
+                return;
+            }
+
+            // New Audience Flow
             const typeTag = isEnriched ? 'Enriched' : 'Raw';
             const finalTags = [typeTag, ...uiTags.filter(t => t !== 'Enriched' && t !== 'Raw')];
             const payload = { 
@@ -224,7 +245,7 @@ export const useContacts = (navigate) => {
             }
         } catch (error) {
             console.error("Save error:", error);
-            console.error("Failed to save audience");
+            toast.error("Failed to save audience");
         } finally {
             setIsSavingAudience(false);
         }

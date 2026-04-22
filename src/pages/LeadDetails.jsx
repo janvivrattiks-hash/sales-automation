@@ -11,9 +11,7 @@ import LeadDetailsHeader from '../components/leadDetails/LeadDetailsHeader';
 import LeadDetailsStats from '../components/leadDetails/LeadDetailsStats';
 import LeadDetailsTable from '../components/leadDetails/LeadDetailsTable';
 
-// Reuse the DeleteLeadModal already built for Dashboard
-import DeleteLeadModal from '../components/dashboard/DeleteLeadModal';
-import DeleteSearchModal from '../components/leadGenerator/DeleteSearchModal';
+import { hasRealOwnerName, deepGet } from '../utils/contactUtils';
 
 const LeadDetails = () => {
     const navigate = useNavigate();
@@ -31,7 +29,7 @@ const LeadDetails = () => {
     // Normalize leads by adding unique IDs and extracting any available identifiers
     useEffect(() => {
         console.log("📍 [LeadDetails] Received location state:", location.state);
-        
+
         if (location.state?.results) {
             // Use leads as-is from backend - NO normalization, NO fake IDs
             const results = Array.isArray(location.state.results) ? location.state.results : [];
@@ -46,53 +44,23 @@ const LeadDetails = () => {
     }, [location.state]);
 
     // ── Handlers ──────────────────────────────────────────────────────────────
-
-    // Helper function to check if owner_name is real (not N/A, not empty)
-    const hasRealOwnerName = (lead) => {
-        if (!lead) return false;
-
-        let ownerName = lead?.lead_owner || lead?.main_owner || lead?.owner_name || lead?.owner || lead?.owner_info || null;
-
-        // Handle if it's somehow an array (take first)
-        if (Array.isArray(ownerName)) {
-            ownerName = ownerName[0];
-        }
-
-        const result = !!(
-            ownerName &&
-            typeof ownerName === 'string' &&
-            ownerName !== 'N/A' &&
-            ownerName !== 'undefined' &&
-            ownerName !== 'null' &&
-            ownerName.trim() !== ''
-        );
-
-        console.log("🔍 [hasRealOwnerName] Checking:", {
-            "lead?.owner_name": lead?.owner_name,
-            "finalOwnerName": ownerName,
-            "type": typeof ownerName,
-            "result": result
-        });
-
-        return result;
-    };
-
+    
     // Helper function to extract backend UUID from lead object
     const extractBackendId = (lead) => {
         if (!lead) return null;
 
-        // Search for ANY UUID field in the object
-        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        // Use deepGet with all possible UUID keys
+        const id = deepGet(lead, ['id', 'result_id', 'business_information_id', 'lead_id', 'search_id']);
+        if (id) return id;
 
-        // Check all object values for UUID pattern
+        // FALLBACK: Search for ANY UUID field in the object manually
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
         for (const [key, value] of Object.entries(lead)) {
             if (typeof value === 'string' && uuidPattern.test(value)) {
-                console.log(`✅ [extractBackendId] Found backend UUID in field '${key}': ${value}`);
                 return value;
             }
         }
-
-        console.log("❌ [extractBackendId] No backend UUID found in lead object");
         return null;
     };
 
@@ -201,12 +169,12 @@ const LeadDetails = () => {
 
     const handleDeleteSearch = useCallback(async () => {
         // Try all possible locations for job_id
-        const jobId = location.state?.queryInfo?.job_id || 
-                      location.state?.job_id || 
-                      leadData?.job_id;
-        
+        const jobId = location.state?.queryInfo?.job_id ||
+            location.state?.job_id ||
+            leadData?.job_id;
+
         console.log("🔍 [handleDeleteSearch] attempting to delete with jobId:", jobId);
-        
+
         if (!jobId) {
             console.error("❌ [handleDeleteSearch] No job_id found");
             alert("No Job ID found for this search. Please try re-opening the search from Search History.");
@@ -246,12 +214,12 @@ const LeadDetails = () => {
                 onBack={() => {
                     // Go back explicitly with full state preservation
                     if (location.state?.backUrl) {
-                        navigate(location.state.backUrl, { 
-                            state: { 
+                        navigate(location.state.backUrl, {
+                            state: {
                                 ...location.state,
                                 selectedLead: null,
                                 singleLead: null
-                            } 
+                            }
                         });
                     } else {
                         navigate(-1);
@@ -310,6 +278,7 @@ const LeadDetails = () => {
                 queryValue={queryValue}
                 cityValue={cityValue}
                 areaValue={areaValue}
+                jobId={location.state?.queryInfo?.job_id || location.state?.job_id || leadData?.job_id}
                 onDeleteSearch={() => setDeleteSearchModalOpen(true)}
             />
 

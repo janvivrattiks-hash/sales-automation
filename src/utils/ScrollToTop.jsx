@@ -12,7 +12,8 @@ const ScrollToTop = () => {
   }, []);
 
   useEffect(() => {
-    // Core scroll reset - triggers on every navigation (even same path)
+    // Scroll to top only when the pathname changes
+    // This prevents scrolling when only location.state is updated (e.g. during state-to-history sync)
     window.scrollTo(0, 0);
 
     // Secondary reset for components that might change height after initial render
@@ -21,7 +22,7 @@ const ScrollToTop = () => {
     });
 
     return () => cancelAnimationFrame(rafId);
-  }, [location]);
+  }, [location.pathname]);
 
   return null;
 };

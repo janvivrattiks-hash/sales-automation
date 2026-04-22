@@ -22,7 +22,7 @@ const getEventIcon = (eventName) => {
     }
 };
 
-const ActivityTab = ({ activityLogs, isLoadingActivity, leadId }) => {
+const ActivityTab = ({ activityLogs, isLoadingActivity, leadId, onRefresh }) => {
     const [selectedReply, setSelectedReply] = useState(null);
     const [isSyncing, setIsSyncing] = useState(false);
     const [isFetchingReply, setIsFetchingReply] = useState(false);
@@ -62,8 +62,10 @@ const ActivityTab = ({ activityLogs, isLoadingActivity, leadId }) => {
             await Api.syncGmailReplies(token);
             toast.success("All activities synced!");
             
-            // 3. Refresh activity logs (this will trigger fetchActivity and get updated data)
-            window.location.reload(); 
+            // 3. Refresh activity logs without page reload
+            if (onRefresh) {
+                await onRefresh();
+            }
         } catch (error) {
             console.error("Sync error:", error);
             if (error.response?.status === 403) {

@@ -26,6 +26,13 @@ const SearchHistory = () => {
     const [viewingJobId, setViewingJobId] = useState(null);
     const [deleteModal, setDeleteModal] = useState({ open: false, job: null });
     const [deletingJobId, setDeletingJobId] = useState(null);
+    const [pendingJobIds, setPendingJobIds] = useState([]);
+
+    useEffect(() => {
+        const pending = JSON.parse(localStorage.getItem('lead_gen_pending_jobs') || '[]');
+        setPendingJobIds(pending.map(j => j.job_id));
+    }, []);
+
 
     useEffect(() => { // fetch recent searches
         const fetchActivities = async () => { // fetch recent searches
@@ -59,6 +66,29 @@ const SearchHistory = () => {
     };
 
     const handleViewLeads = (activity) => { // handle view leads
+        const isPending = pendingJobIds.includes(activity.job_id);
+        
+        if (isPending) {
+            const pendingJobs = JSON.parse(localStorage.getItem('lead_gen_pending_jobs') || '[]');
+            const pendingData = pendingJobs.find(j => j.job_id === activity.job_id);
+            
+            navigate('/enrich', {
+                state: {
+                    results: activity.results || [],
+                    queryInfo: pendingData?.queryInfo || {
+                        niche: activity.search_details?.niche_or_keyword ?? activity.query_name ?? '',
+                        city: activity.search_details?.location ?? '',
+                        area: activity.search_details?.area ?? 'NA',
+                        job_id: activity.job_id,
+                    },
+                    filters: pendingData?.filters || {},
+                    isFiltered: !!pendingData?.filters,
+                    fromPending: true
+                }
+            });
+            return;
+        }
+
         setViewingJobId(activity.job_id); // set viewing job id
         navigate('/lead-details', { // navigate to lead details
             state: { // pass state to lead details
@@ -73,6 +103,7 @@ const SearchHistory = () => {
         });
         setTimeout(() => setViewingJobId(null), 500);
     };
+
 
     const startIndex = (currentPage - 1) * itemsPerPage;
     const currentActivities = activities.slice(startIndex, startIndex + itemsPerPage);
@@ -153,12 +184,20 @@ const SearchHistory = () => {
                                                         {queryName}
                                                     </span>
                                                 </td>
-                                                <td className="px-8 py-6">
+                                                 <td className="px-8 py-6">
                                                     <div className="flex items-center gap-2">
-                                                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                                                        <span className="text-sm font-semibold text-gray-600">{leadsCount} leads</span>
+                                                        <div className={`w-2 h-2 rounded-full ${pendingJobIds.includes(activity.job_id) ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`}></div>
+                                                        <span className="text-sm font-semibold text-gray-600">
+                                                            {leadsCount} leads 
+                                                            {pendingJobIds.includes(activity.job_id) && (
+                                                                <span className="ml-2 px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-black uppercase rounded-md border border-amber-100">
+                                                                    Pending
+                                                                </span>
+                                                            )}
+                                                        </span>
                                                     </div>
                                                 </td>
+
                                                 <td className="px-8 py-6">
                                                     <span className="text-sm font-semibold text-gray-500">{displayDate}</span>
                                                 </td>

@@ -77,7 +77,8 @@ const SingleAudienceView = () => {
         handleDeleteLead,
         getHostname,
         derivedData,
-        isEditingTask
+        isEditingTask,
+        fetchActivity
     } = useSingleAudience(leadId, leadData, audienceData);
 
     const renderSocialIcon = (url) => {
@@ -191,6 +192,7 @@ const SingleAudienceView = () => {
                                     activityLogs={activityLogs}
                                     isLoadingActivity={isLoadingActivity}
                                     leadId={leadId}
+                                    onRefresh={fetchActivity}
                                 />
                             )}
 

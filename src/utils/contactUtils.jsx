@@ -11,13 +11,20 @@ export const deepGet = (obj, aliases) => {
         const lk = key.toLowerCase();
         if (aliases.some(a => lk === a.toLowerCase())) {
             const v = obj[key];
-            if (v !== null && v !== undefined && v !== '') return v;
+            const isJunk = typeof v === 'string' && ['n/a', 'na', 'not found', 'none', 'null', 'undefined'].includes(v.toLowerCase().trim());
+            if (v !== null && v !== undefined && v !== '' && !isJunk) return v;
         }
     }
     
-    // 2. Recursive into nested objects
+    // 2. Recursive into nested objects/JSON strings
     for (const key of Object.keys(obj)) {
-        const v = obj[key];
+        let v = obj[key];
+        
+        // Try parsing JSON strings at any level
+        if (typeof v === 'string' && v.trim().startsWith('{')) {
+            try { v = JSON.parse(v); } catch (e) { /* ignore parse error */ }
+        }
+
         if (v && typeof v === 'object' && !Array.isArray(v)) {
             const found = deepGet(v, aliases);
             if (found !== null) return found;
@@ -115,3 +122,41 @@ export const findSocialLink = (contact, platform) => {
     return allValues.find(v => domains[platform]?.some(d => v.includes(d)));
 };
 
+/**
+ * Validates if the lead has a 'real' owner name that isn't N/A, null, or placeholder text.
+ * Checks across multiple potential field names and looks into serpapi_data if needed.
+ */
+export const hasRealOwnerName = (lead) => {
+    if (!lead) return false;
+
+    // Search for owner name across multiple potential field names
+    let ownerName = 
+        lead?.lead_owner || 
+        lead?.main_owner || 
+        lead?.owner_name || 
+        lead?.owner || 
+        lead?.owner_info || 
+        lead?.primary_contact_name ||
+        lead?.contact_name ||
+        null;
+
+    // Try to look deep if possible (simple search in serpapi_data)
+    if (!ownerName && lead?.serpapi_data) {
+        const sd = lead.serpapi_data;
+        ownerName = sd.owner_name || sd.owner || sd.contact_name;
+    }
+
+    // Handle if it's somehow an array (take first)
+    if (Array.isArray(ownerName)) {
+        ownerName = ownerName[0];
+    }
+
+    const result = !!(
+        ownerName &&
+        typeof ownerName === 'string' &&
+        ownerName.trim() !== '' &&
+        !['n/a', 'undefined', 'null', 'none', '—', 'not found'].includes(ownerName.toLowerCase().trim())
+    );
+
+    return result;
+};

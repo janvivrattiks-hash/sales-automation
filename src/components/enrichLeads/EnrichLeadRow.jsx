@@ -1,25 +1,13 @@
 import React from 'react';
-import { Eye, Trash2 } from 'lucide-react';
+import { Eye, Trash2, Loader2 } from 'lucide-react';
 import StarRating from '../ui/StarRating';
 
-const EnrichLeadRow = ({ lead, index, isSelected, onToggleSelect, navigate, queryValue, cityValue, areaValue, leads, onDelete, savedCurrentPage, savedSelectedLeads, filters, isFiltered, filteredLeads, searchTerm }) => {
+const EnrichLeadRow = ({ lead, index, isSelected, onToggleSelect, onViewLead, processingLeadId, queryValue, cityValue, areaValue, leads, onDelete, savedCurrentPage, savedSelectedLeads, filters, isFiltered, filteredLeads, searchTerm }) => {
     const leadId = lead.id || lead.MobileNumber || lead.result_id || lead.business_information_id;
 
-    const handleViewLead = () => {
-        navigate('/lead-details', {
-            state: {
-                singleLead: lead,
-                results: leads,
-                queryInfo: { niche: queryValue, city: cityValue, area: areaValue },
-                currentPage: savedCurrentPage,
-                selectedLeads: savedSelectedLeads,
-                filters: filters,
-                isFiltered: isFiltered,
-                filteredLeads: filteredLeads,
-                searchTerm: searchTerm,
-                backUrl: '/enrich'
-            }
-        });
+    const handleViewLead = (e) => {
+        e?.stopPropagation();
+        onViewLead && onViewLead(lead);
     };
 
     return (
@@ -91,10 +79,15 @@ const EnrichLeadRow = ({ lead, index, isSelected, onToggleSelect, navigate, quer
             <td className="px-8 py-6 text-right">
                 <div className="flex items-center justify-end gap-3 text-gray-300">
                     <button
-                        className="p-2 hover:text-primary transition-colors hover:bg-primary/5 rounded-lg active:scale-90"
+                        className="p-2 hover:text-primary transition-colors hover:bg-primary/5 rounded-lg active:scale-90 disabled:opacity-50"
                         onClick={handleViewLead}
+                        disabled={processingLeadId === leadId}
                     >
-                        <Eye size={18} />
+                        {processingLeadId === leadId ? (
+                            <Loader2 size={18} className="animate-spin text-primary" />
+                        ) : (
+                            <Eye size={18} />
+                        )}
                     </button>
                     <button 
                         className="p-2 hover:text-red-500 transition-colors hover:bg-red-50 rounded-lg active:scale-90"

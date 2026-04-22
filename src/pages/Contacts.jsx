@@ -27,7 +27,7 @@ const Contacts = () => {
     const { adminToken, leads: contextLeads } = useContext(AppContext);
 
     // Hooks & State
-    const contactsHook = useContacts(navigate);
+    const contactsHook = useContacts(navigate, location);
     const {
         rawContacts, enrichedContacts, audiences,
         rawLoading, audLoading, loading, setLoading,
@@ -44,13 +44,28 @@ const Contacts = () => {
         handleFilter, handleSaveAudience, handleDeleteLead, handleDeleteAudience
     } = contactsHook;
 
-    const [isEnriched, setIsEnriched] = useState(location.state?.activeTab === 'enriched');
-    const [currentPage, setCurrentPage] = useState(1);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [audSearchQuery, setAudSearchQuery] = useState('');
+    const [isEnriched, setIsEnriched] = useState(
+        location.state?.isEnriched ?? (
+            location.state?.activeTab === 'enriched' || 
+            location.state?.fromTab === 'enriched'
+        )
+    );
+    const [rawPage, setRawPage] = useState(location.state?.rawPage || 1);
+    const [enrichedPage, setEnrichedPage] = useState(location.state?.enrichedPage || 1);
+    
+    // Abstract the current page based on active tab
+    const currentPage = isEnriched ? enrichedPage : rawPage;
+    const setCurrentPage = (page) => {
+        if (isEnriched) setEnrichedPage(page);
+        else setRawPage(page);
+    };
+    const [searchQuery, setSearchQuery] = useState(location.state?.searchQuery || '');
+    const [audSearchQuery, setAudSearchQuery] = useState(location.state?.audSearchQuery || '');
     const [isMainFilterOpen, setIsMainFilterOpen] = useState(false);
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
     const [isSaveAudienceModalOpen, setIsSaveAudienceModalOpen] = useState(false);
+    const [saveMode, setSaveMode] = useState('new'); // 'new' or 'existing'
+    const [selectedAudienceId, setSelectedAudienceId] = useState('');
     const [filterLeadsData, setFilterLeadsData] = useState([]);
     const [modalCurrentPage, setModalCurrentPage] = useState(1);
     const [deleteModalState, setDeleteModalState] = useState({ open: false, type: 'lead', data: null });
@@ -98,6 +113,36 @@ const Contacts = () => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const currentContacts = displayContacts.slice(startIndex, startIndex + itemsPerPage);
 
+    // Synchronize local state with history state for robust back-navigation preservation
+    useEffect(() => {
+        const historyRawPage = location.state?.rawPage;
+        const historyEnrichedPage = location.state?.enrichedPage;
+        const historySearch = location.state?.searchQuery;
+        const historyIsEnriched = location.state?.isEnriched;
+        const historySelectedCount = location.state?.selectedLeads?.length || 0;
+        
+        const needsSync = (rawPage !== historyRawPage) || 
+                          (enrichedPage !== historyEnrichedPage) ||
+                          (searchQuery !== historySearch) ||
+                          (isEnriched !== historyIsEnriched) ||
+                          (selectedLeads.length !== historySelectedCount);
+
+        if (needsSync) {
+            console.log("🔄 [Contacts] Syncing pagination/selection to history:", { rawPage, enrichedPage, isEnriched });
+            navigate(location.pathname, {
+                replace: true,
+                state: {
+                    ...location.state,
+                    rawPage,
+                    enrichedPage,
+                    searchQuery,
+                    isEnriched,
+                    selectedLeads
+                }
+            });
+        }
+    }, [rawPage, enrichedPage, searchQuery, isEnriched, selectedLeads, location.pathname, location.state, navigate]);
+
     // Handlers
     const handleEnrichLeads = () => {
         const leadsToEnrich = selectedLeads.length > 0
@@ -108,7 +153,19 @@ const Contacts = () => {
     };
 
     const handleViewRawContact = (lead) => {
-        navigate('/contact-details', { state: { singleLead: lead, fromTab: 'raw' } });
+        navigate('/contact-details', { 
+            state: { 
+                ...location.state,
+                singleLead: lead, 
+                fromTab: 'raw',
+                isEnriched: false,
+                rawPage,
+                enrichedPage,
+                searchQuery,
+                selectedLeads,
+                backUrl: '/contacts'
+            } 
+        });
     };
 
     const handleViewLead = async (lead) => {
@@ -146,13 +203,33 @@ const Contacts = () => {
 
             navigate('/contact-details', {
                 state: {
+                    ...location.state,
                     singleLead: mergedLead,
-                    fromTab: 'enriched'
+                    fromTab: isEnriched ? 'enriched' : 'raw',
+                    isEnriched,
+                    rawPage,
+                    enrichedPage,
+                    searchQuery,
+                    selectedLeads,
+                    backUrl: '/contacts'
                 }
             });
 
         } catch (error) {
             console.error("Failed to load details", error);
+            navigate('/contact-details', {
+                state: {
+                    ...location.state,
+                    singleLead: lead,
+                    fromTab: isEnriched ? 'enriched' : 'raw',
+                    isEnriched,
+                    rawPage,
+                    enrichedPage,
+                    searchQuery,
+                    selectedLeads,
+                    backUrl: '/contacts'
+                }
+            });
         } finally {
             setViewingId(null);
         }
@@ -185,7 +262,7 @@ const Contacts = () => {
                     </div>
                     <div className="flex items-center gap-1 bg-white border border-gray-100 p-1 rounded-xl shadow-sm">
                         <button onClick={() => setIsEnriched(false)} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${!isEnriched ? 'bg-primary/10 text-primary' : 'text-gray-500 hover:text-gray-700'}`}>Raw Data</button>
-                        <button onClick={() => setIsEnriched(true)} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${isEnriched ? 'bg-primary/10 text-primary' : 'text-gray-500 hover:text-gray-700'}`}>Enriched Data</button>
+                        <button onClick={() => { setIsEnriched(true); setEnrichedPage(1); }} className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${isEnriched ? 'bg-primary/10 text-primary' : 'text-gray-500 hover:text-gray-700'}`}>Enriched Data</button>
                     </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
@@ -319,10 +396,32 @@ const Contacts = () => {
 
             </Modal>
 
-            <Modal isOpen={isSaveAudienceModalOpen} onClose={() => setIsSaveAudienceModalOpen(false)} title="Create New Audience" footer={(
-                <Button onClick={() => handleSaveAudience(isEnriched, activeContacts, filterLeadsData)} className="bg-blue-600" disabled={isSavingAudience}>Complete & Save</Button>
+            <Modal isOpen={isSaveAudienceModalOpen} onClose={() => setIsSaveAudienceModalOpen(false)} title={saveMode === 'new' ? "Create New Audience" : "Add to Existing Audience"} footer={(
+                <Button 
+                    onClick={() => handleSaveAudience(isEnriched, activeContacts, filterLeadsData, saveMode, selectedAudienceId)} 
+                    className="bg-blue-600" 
+                    disabled={isSavingAudience}
+                >
+                    {isSavingAudience ? <Loader2 className="animate-spin" size={18} /> : (saveMode === 'new' ? 'Complete & Save' : 'Add to Audience')}
+                </Button>
             )}>
                 <div className="space-y-6 text-left">
+                    {/* Mode Toggle */}
+                    <div className="flex p-1 bg-gray-100 rounded-xl">
+                        <button 
+                            onClick={() => setSaveMode('new')}
+                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${saveMode === 'new' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Create New
+                        </button>
+                        <button 
+                            onClick={() => setSaveMode('existing')}
+                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${saveMode === 'existing' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Add to Existing
+                        </button>
+                    </div>
+
                     <div className="flex items-center justify-between p-4 bg-primary/5 rounded-2xl border border-primary/10">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
@@ -339,42 +438,72 @@ const Contacts = () => {
                         </div>
                     </div>
 
-                    <Input label="Audience Name" placeholder="e.g., Surat Cafes" value={audienceData.audiance_name} onChange={(e) => setAudienceData({ ...audienceData, audiance_name: e.target.value })} />
+                    {saveMode === 'new' ? (
+                        <>
+                            <Input label="Audience Name" placeholder="e.g., Surat Cafes" value={audienceData.audiance_name} onChange={(e) => setAudienceData({ ...audienceData, audiance_name: e.target.value })} />
 
-                    <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase pb-1.5 block">Description</label>
-                        <textarea className="w-full mt-2 p-3 bg-gray-50 border border-gray-100 rounded-xl min-h-[100px]" value={audienceData.discription} onChange={(e) => setAudienceData({ ...audienceData, discription: e.target.value })} />
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase">Tags</label>
-                        <div className="flex flex-wrap gap-2 mt-2 mb-3">
-                            {uiTags.filter(t => t !== 'Enriched' && t !== 'Raw').map((tag, idx) => (
-                                <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-primary/10 text-primary text-sm font-medium rounded-lg">
-                                    {tag}
-                                    <button
-                                        type="button"
-                                        onClick={() => setUiTags(uiTags.filter(t => t !== tag))}
-                                        className="hover:text-primary/70 focus:outline-none ml-1"
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase pb-1.5 block">Description</label>
+                                <textarea className="w-full mt-2 p-3 bg-gray-50 border border-gray-100 rounded-xl min-h-[100px]" value={audienceData.discription} onChange={(e) => setAudienceData({ ...audienceData, discription: e.target.value })} />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase">Tags</label>
+                                <div className="flex flex-wrap gap-2 mt-2 mb-3">
+                                    {uiTags.filter(t => t !== 'Enriched' && t !== 'Raw').map((tag, idx) => (
+                                        <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 bg-primary/10 text-primary text-sm font-medium rounded-lg">
+                                            {tag}
+                                            <button
+                                                type="button"
+                                                onClick={() => setUiTags(uiTags.filter(t => t !== tag))}
+                                                className="hover:text-primary/70 focus:outline-none ml-1"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </span>
+                                    ))}
+                                </div>
+                                <Input
+                                    placeholder="Type a tag and press Enter"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            const newTag = e.target.value.trim();
+                                            if (newTag && !uiTags.includes(newTag)) {
+                                                setUiTags([...uiTags, newTag]);
+                                                e.target.value = '';
+                                            }
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </>
+                    ) : (
+                        <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase pb-1.5 block">Select Audience</label>
+                                <div className="relative">
+                                    <select 
+                                        className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none"
+                                        value={selectedAudienceId || ''}
+                                        onChange={(e) => setSelectedAudienceId(e.target.value)}
                                     >
-                                        <X size={14} />
-                                    </button>
-                                </span>
-                            ))}
+                                        <option value="" disabled>Choose an audience...</option>
+                                        {audiences.map((aud) => (
+                                            <option key={aud.id} value={aud.id}>
+                                                {aud.audiance_name || aud.name} ({aud.business_count || aud.businesses?.length || 0} leads)
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                        <ChevronDown size={16} />
+                                    </div>
+                                </div>
+                                {audiences.length === 0 && (
+                                    <p className="text-[10px] text-amber-600 font-bold mt-2 uppercase tracking-tight italic text-center">No existing audiences found. Try creating a new one first.</p>
+                                )}
+                            </div>
                         </div>
-                        <Input
-                            placeholder="Type a tag and press Enter"
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    const newTag = e.target.value.trim();
-                                    if (newTag && !uiTags.includes(newTag)) {
-                                        setUiTags([...uiTags, newTag]);
-                                        e.target.value = '';
-                                    }
-                                }
-                            }}
-                        />
-                    </div>
+                    )}
                 </div>
             </Modal>
 

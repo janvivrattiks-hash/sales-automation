@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronRight, Search } from 'lucide-react';
 import Button from '../components/ui/Button';
 import { AppContext } from '../context/AppContext';
 import Api from '../../scripts/Api';
+import { hasRealOwnerName, deepGet } from '../utils/contactUtils';
 
 // Modular Components
 import EnrichLeadsHeader from '../components/enrichLeads/EnrichLeadsHeader';
@@ -17,23 +18,56 @@ const EnrichLeads = () => {
     const { adminToken } = useContext(AppContext);
 
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-    const [leadData, setLeadData] = useState(location.state?.results ? {
-        leads: Array.isArray(location.state.results) ? location.state.results : (location.state.results?.data || []),
-        ...location.state.queryInfo
-    } : null);
-    const [filters, setFilters] = useState(location.state?.filters || {
-        website: 'Any',
-        minRating: '',
-        category: '',
-        reviews: '',
+    const [leadData, setLeadData] = useState(() => {
+        const results = location.state?.results;
+        if (!results) return null;
+        
+        const leadsArray = Array.isArray(results) 
+            ? results 
+            : (results.leads || results.data || results.results || []);
+            
+        return {
+            leads: leadsArray,
+            ...location.state.queryInfo,
+            ...(typeof results === 'object' && !Array.isArray(results) ? results : {})
+        };
     });
+
+    const [filters, setFilters] = useState(() => {
+        const savedDraft = localStorage.getItem('lead_gen_draft_filters');
+        if (savedDraft) {
+            try {
+                const parsed = JSON.parse(savedDraft);
+                return { ...parsed, ...location.state?.filters };
+            } catch (e) {
+                console.error("Failed to parse saved filters", e);
+            }
+        }
+        return location.state?.filters || {
+            website: 'Any',
+            minRating: '',
+            category: '',
+            reviews: '',
+        };
+    });
+
+    // Save filter drafts whenever they change
+    useEffect(() => {
+        localStorage.setItem('lead_gen_draft_filters', JSON.stringify(filters));
+    }, [filters]);
+
 
     const [selectedLeads, setSelectedLeads] = useState(location.state?.selectedLeads || []);
     const [currentPage, setCurrentPage] = useState(location.state?.currentPage || 1);
     const [searchTerm, setSearchTerm] = useState(location.state?.searchTerm || '');
-    const [originalLeads, setOriginalLeads] = useState(location.state?.results 
-        ? (Array.isArray(location.state.results) ? location.state.results : (location.state.results?.data || [])) 
-        : []);
+    const [originalLeads, setOriginalLeads] = useState(() => {
+        const results = location.state?.results;
+        if (!results) return [];
+        return Array.isArray(results) 
+            ? results 
+            : (results.leads || results.data || results.results || []);
+    });
+
     const [isFiltering, setIsFiltering] = useState(false);
     const [filteredLeads, setFilteredLeads] = useState(location.state?.filteredLeads || []);
     const [isFiltered, setIsFiltered] = useState(location.state?.isFiltered || false);
@@ -42,18 +76,59 @@ const EnrichLeads = () => {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [leadToDelete, setLeadToDelete] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [processingLeadId, setProcessingLeadId] = useState(null);
 
     const itemsPerPage = 5;
 
     useEffect(() => {
+        console.log("📍 [EnrichLeads] Received location state:", location.state);
+        console.log("📊 [EnrichLeads] leadData state:", leadData);
+        
         // Sync niche to category filter if coming from generic navigation
         if (location.state?.queryInfo?.niche && !location.state?.filters) {
             setFilters(prev => ({ ...prev, category: location.state.queryInfo.niche }));
         }
-    }, [location.state?.queryInfo?.niche]);
+    }, [location.state, leadData]);
+
+    // Synchronize local state with history state for robust back-navigation preservation
+    useEffect(() => {
+        const historyPage = location.state?.currentPage;
+        const historySelectedCount = location.state?.selectedLeads?.length || 0;
+        const historySearch = location.state?.searchTerm;
+        
+        const needsSync = (currentPage !== historyPage) || 
+                          (selectedLeads.length !== historySelectedCount) ||
+                          (searchTerm !== historySearch);
+
+        if (needsSync) {
+            console.log("🔄 [EnrichLeads] Syncing pagination/selection to history:", { currentPage, selectedLeads: selectedLeads.length });
+            navigate(location.pathname, {
+                replace: true,
+                state: {
+                    ...location.state,
+                    currentPage,
+                    selectedLeads,
+                    searchTerm
+                }
+            });
+        }
+    }, [currentPage, selectedLeads, searchTerm, location.pathname, location.state, navigate]);
 
     const handleFilter = async () => {
         setIsFiltering(true);
+        // Robust Job ID extraction
+        const jobId = leadData?.job_id || 
+                      location.state?.queryInfo?.job_id || 
+                      location.state?.job_id;
+        
+        console.log("🔍 [EnrichLeads] Attempting filter with Job ID:", jobId);
+        
+        if (!jobId) {
+            console.error("❌ No Job ID found for filtering. State keys:", Object.keys(location.state || {}), "leadData keys:", Object.keys(leadData || {}));
+            setIsFiltering(false);
+            return;
+        }
+
         const filterParams = {
             website: filters.website || 'Any',
             ratings: filters.ratings || filters.minRating || 0,
@@ -62,7 +137,8 @@ const EnrichLeads = () => {
         };
 
         try {
-            const response = await Api.filterLeads(filterParams, adminToken);
+            // Use the new job-specific filter API
+            const response = await Api.filterByJob(jobId, filterParams, adminToken);
             let filteredData = [];
 
             if (Array.isArray(response)) {
@@ -79,23 +155,38 @@ const EnrichLeads = () => {
                 }
             }
 
-            // If user has specifically selected leads, we should prioritize them 
-            // but if they are filtering, they likely want the filtered set as the new context.
-            const finalLeads = selectedLeads.length > 0
-                ? filteredData.filter(l => selectedLeads.includes(l.id || l.result_id || l.MobileNumber))
-                : filteredData;
-
+            console.log("✅ Filtered Results:", filteredData);
+            
+            // Automatically navigate to Review page after filtering
             navigate('/review-leads', {
-                state: { 
-                    results: finalLeads.length > 0 ? finalLeads : filteredData, 
-                    queryInfo: {
-                        niche: queryValue,
-                        city: cityValue,
+                state: {
+                    results: filteredData,
+                    queryInfo: { 
+                        niche: queryValue, 
+                        city: cityValue, 
                         area: areaValue,
-                        ...leadData
-                    }
+                        ...leadData,
+                        job_id: jobId 
+                    },
+                    filters: filterParams,
+                    isFiltered: true,
+                    filteredLeads: filteredData
                 }
             });
+
+            // Track as Pending Job
+            const pendingJobs = JSON.parse(localStorage.getItem('lead_gen_pending_jobs') || '[]');
+            const newPendingJob = {
+                job_id: jobId,
+                filters: filterParams,
+                queryInfo: { niche: queryValue, city: cityValue, area: areaValue, ...leadData },
+                timestamp: new Date().toISOString()
+            };
+            
+            // Avoid duplicates
+            const filteredPending = pendingJobs.filter(j => j.job_id !== jobId);
+            localStorage.setItem('lead_gen_pending_jobs', JSON.stringify([...filteredPending, newPendingJob]));
+
         } catch (error) {
             console.error("Filter failed:", error);
         } finally {
@@ -137,11 +228,65 @@ const EnrichLeads = () => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const currentLeads = leads.slice(startIndex, startIndex + itemsPerPage);
 
-    // Actions
-    const handleDeleteClick = (id) => {
-        setLeadToDelete(id);
-        setIsDeleteModalOpen(true);
-    };
+    const handleViewLead = useCallback(async (lead) => {
+        if (!lead) return;
+
+        // Extract ID
+        const leadId = deepGet(lead, ['id', 'result_id', 'business_information_id', 'lead_id', 'search_id']);
+        
+        const navigationState = {
+            ...location.state,
+            results: originalLeads,
+            queryInfo: { niche: queryValue, city: cityValue, area: areaValue },
+            currentPage: currentPage,
+            selectedLeads: selectedLeads,
+            filters: filters,
+            isFiltered: isFiltered,
+            filteredLeads: filteredLeads,
+            searchTerm: searchTerm,
+            backUrl: '/enrich'
+        };
+
+        // CASE 1: Already has owner info — navigate directly
+        if (hasRealOwnerName(lead)) {
+            navigate('/lead-details', { 
+                state: { ...navigationState, selectedLead: lead } 
+            });
+            return;
+        }
+
+        // CASE 2: No ID — cannot fetch fresh data
+        if (!leadId) {
+            navigate('/lead-details', { 
+                state: { ...navigationState, singleLead: lead } 
+            });
+            return;
+        }
+
+        // CASE 3: Fetch fresh data
+        try {
+            setProcessingLeadId(leadId);
+            const freshData = await Api.getLeadById(leadId, adminToken, true);
+            const unwrappedData = freshData?.data || freshData;
+
+            if (unwrappedData) {
+                navigate('/lead-details', { 
+                    state: { ...navigationState, selectedLead: { ...lead, ...unwrappedData } } 
+                });
+            } else {
+                navigate('/lead-details', { 
+                    state: { ...navigationState, singleLead: lead } 
+                });
+            }
+        } catch (error) {
+            console.error("Failed to fetch fresh lead data:", error);
+            navigate('/lead-details', { 
+                state: { ...navigationState, singleLead: lead } 
+            });
+        } finally {
+            setProcessingLeadId(null);
+        }
+    }, [adminToken, originalLeads, queryValue, cityValue, areaValue, currentPage, selectedLeads, filters, isFiltered, filteredLeads, searchTerm, navigate]);
 
     const handleConfirmDelete = async () => {
         if (!leadToDelete) return;
@@ -160,6 +305,13 @@ const EnrichLeads = () => {
             setIsDeleting(false);
         }
     };
+
+    const handleDeleteClick = (id) => {
+        setLeadToDelete(id);
+        setIsDeleteModalOpen(true);
+    };
+
+    // Deletion State
 
     // Empty state
     if (!leadData) {
@@ -188,6 +340,7 @@ const EnrichLeads = () => {
                 leads={leads}
                 navigate={navigate}
                 onFilterOpen={() => setIsFilterModalOpen(true)}
+                location={location}
             />
 
             <FilterModal
@@ -207,7 +360,8 @@ const EnrichLeads = () => {
                 currentPage={currentPage}
                 itemsPerPage={itemsPerPage}
                 onPageChange={setCurrentPage}
-                navigate={navigate}
+                onViewLead={handleViewLead}
+                processingLeadId={processingLeadId}
                 queryValue={queryValue}
                 cityValue={cityValue}
                 areaValue={areaValue}

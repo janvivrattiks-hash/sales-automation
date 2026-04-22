@@ -9,22 +9,24 @@ export const findField = (data, aliases) => {
     if (!target || typeof target !== 'object') return null;
     const dataKeys = Object.keys(target);
 
+    const isJunk = (v) => typeof v === 'string' && ['n/a', 'na', 'not found', 'none', 'null', 'undefined'].includes(v.toLowerCase().trim());
+
     const findKey = (aliasArr) => {
         // Exact match
         for (const alias of aliasArr) {
-            if (target[alias] !== undefined) return target[alias];
+            if (target[alias] !== undefined && !isJunk(target[alias])) return target[alias];
         }
         // Case-insensitive match
         for (const alias of aliasArr) {
             const lowAlias = alias.toLowerCase();
             const foundKey = dataKeys.find(k => k.toLowerCase() === lowAlias);
-            if (foundKey) return target[foundKey];
+            if (foundKey && !isJunk(target[foundKey])) return target[foundKey];
         }
         // Partial match
         for (const alias of aliasArr) {
             const lowAlias = alias.toLowerCase();
             const foundKey = dataKeys.find(k => k.toLowerCase().includes(lowAlias));
-            if (foundKey) return target[foundKey];
+            if (foundKey && !isJunk(target[foundKey])) return target[foundKey];
         }
         return null;
     };
@@ -45,7 +47,13 @@ export const getDeepField = (obj, aliases) => {
     if (found !== null) return found;
 
     for (const key of Object.keys(obj)) {
-        const val = obj[key];
+        let val = obj[key];
+        
+        // Try parsing JSON strings to continue the deep search
+        if (typeof val === 'string' && val.trim().startsWith('{')) {
+            try { val = JSON.parse(val); } catch (e) { /* ignore */ }
+        }
+
         if (val && typeof val === 'object' && !Array.isArray(val)) {
             let nestedFound = getDeepField(val, aliases);
             if (nestedFound !== null &&

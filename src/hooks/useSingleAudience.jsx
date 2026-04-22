@@ -596,15 +596,25 @@ const useSingleAudience = (leadId, initialLeadData, initialAudience) => {
             locationStr: extractString(bizInfo.full_address || bizInfo.address || getDeepField(contactInfo, ['location', 'address', 'Address', 'full_address', 'formatted_address', 'city', 'Location', 'City', 'full_location', 'physical_address']), 'N/A'),
             phoneStr: discovered.allPhones.length > 0 ? discovered.allPhones.join(', ') : extractString(bizInfo.phone || getDeepField(contactInfo, ['phone', 'phone_number', 'mobile', 'MobileNumber', 'contact_number', 'Phone', 'work_phone', 'contact_phone', 'telephone', 'mobile_no', 'contact_no', 'Mobile', 'contact_mobile', 'phoneNumber']), 'N/A'),
             allPhones: discovered.allPhones, // Also passing as array for dedicated rendering
-            websiteStr: discovered.websiteStr || extractString(bizInfo.website || getDeepField(contactInfo, ['website', 'website_url', 'domain', 'url', 'Website', 'site_url', 'home_page', 'homepage', 'web']), 'N/A'),
-            ratingVal: discovered.ratingVal !== '0.0' ? discovered.ratingVal : (bizInfo.rating || getDeepField(contactInfo, ['rating', 'google_rating', 'Rating', 'stars', 'star_rating', 'google_map_rating', 'average_rating', 'score', 'googleRating', 'avg_rating']) || '0.0'),
+            websiteStr: (() => {
+                const raw = discovered.websiteStr || bizInfo.website || getDeepField(contactInfo, ['website', 'website_url', 'domain', 'url', 'Website', 'site_url', 'home_page', 'homepage', 'web']) || poiDetails?.website || poiDetails?.url;
+                const isUrl = (val) => typeof val === 'string' && val.includes('.') && val.length > 5 && !['yes', 'no', 'true', 'false', 'unknown'].includes(val.toLowerCase().trim());
+                return isUrl(raw) ? raw : '';
+            })(),
+            ratingVal: (() => {
+                const raw = poiDetails?.rating || poiDetails?.Rating || (discovered.ratingVal !== '0.0' ? discovered.ratingVal : (bizInfo.rating || getDeepField(contactInfo, ['rating', 'google_rating', 'Rating', 'stars', 'star_rating', 'google_map_rating', 'average_rating', 'score', 'googleRating', 'avg_rating']) || '0.0'));
+                if (raw === true || raw === 'yes' || raw === 'true') return '0.0';
+                return String(raw);
+            })(),
             source: discovered.sources.length > 0
                 ? discovered.sources.join(', ')
                 : (getDeepField(contactInfo, ['source', 'lead_source', 'Lead Source', 'source_job', 'origin', 'query_name', 'niche_or_keyword']) || 'Manual / Imported'),
             socialLinks: getSocialLinks(),
             emailsArray: (() => {
-                const emailsFromCtr = ctrInfo.emails || ctrInfo.email_addresses || ctrInfo.emails_found;
-                const emailsField = emailsFromCtr || getDeepField(contactInfo, ['emails', 'email_addresses', 'emails_found', 'email', 'Email', 'contact_emails', 'personal_email', 'work_email', 'email1', 'email2', 'primary_email', 'biz_email', 'business_email', 'email_addr']);
+                const emailsFromCtr = ctrInfo.emails || ctrInfo.email_addresses || ctrInfo.emails_found || ctrInfo.business_emails;
+                const fieldList = ['emails', 'email_addresses', 'emails_found', 'email', 'Email', 'business_emails', 'email_enrichment', 'contact_emails', 'personal_email', 'work_email', 'email1', 'email2', 'primary_email', 'biz_email', 'business_email', 'email_addr'];
+                const emailsField = emailsFromCtr || getDeepField(contactInfo, fieldList) || getDeepField(poiDetails, fieldList);
+                
                 if (Array.isArray(emailsField)) return emailsField.map(e => String(e).trim()).filter(Boolean);
                 if (typeof emailsField === 'string') return emailsField.split(',').map(s => s.trim()).filter(Boolean);
                 return emailsField ? [String(emailsField).trim()] : [];

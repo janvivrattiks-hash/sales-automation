@@ -2,14 +2,19 @@ import React from 'react';
 import { ChevronRight, Filter, Download } from 'lucide-react';
 import Button from '../ui/Button';
 
-const EnrichLeadsHeader = ({ queryValue, cityValue, areaValue, leads, navigate, onFilterOpen }) => {
+const EnrichLeadsHeader = ({ queryValue, cityValue, areaValue, leads, navigate, onFilterOpen, location }) => {
     return (
         <>
             {/* Breadcrumbs */}
             <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">
                 <button
                     onClick={() => navigate('/lead-details', {
-                        state: { results: leads, queryInfo: { niche: queryValue, city: cityValue, area: areaValue } }
+                        state: { 
+                            ...location?.state, 
+                            results: leads, 
+                            queryInfo: { niche: queryValue, city: cityValue, area: areaValue },
+                            backUrl: '/enrich'
+                        }
                     })}
                     className="hover:text-primary transition-colors"
                 >

@@ -2,7 +2,7 @@ import React from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const ReviewLeadsHeader = () => {
+const ReviewLeadsHeader = ({ leads, queryInfo, location }) => {
     const navigate = useNavigate();
 
     return (
@@ -10,6 +10,13 @@ const ReviewLeadsHeader = () => {
             {/* Breadcrumbs */}
             <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">
                 <button onClick={() => navigate('/lead-generator')} className="hover:text-primary transition-colors">LEAD GENERATOR</button>
+                <ChevronRight size={10} />
+                <button 
+                    onClick={() => navigate('/enrich', { state: { ...location?.state, results: leads, queryInfo } })} 
+                    className="hover:text-primary transition-colors uppercase"
+                >
+                    ENRICH LEADS
+                </button>
                 <ChevronRight size={10} />
                 <span className="text-gray-900">REVIEW</span>
             </div>

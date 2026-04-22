@@ -31,7 +31,7 @@ const SingleLeadDetail = ({ lead, onBack }) => {
     // Unwrap the data if it's nested in a response object
     // API returns: { count: 1, data: { ... }, message: "..." }
     const leadData = lead?.data || lead;
-    
+
     console.log("📋 [SingleLeadDetail] Unwrapped lead data:", leadData);
 
     // Helper to get first valid (non-empty, non-'N/A') string from a list of properties
@@ -66,7 +66,7 @@ const SingleLeadDetail = ({ lead, onBack }) => {
         const addIfUnique = (p) => {
             if (!p || typeof p !== 'string') return;
             const digits = p.replace(/\D/g, '');
-            if (digits.length < 7) return; 
+            if (digits.length < 7) return;
             const last10 = digits.slice(-10);
             if (!seenLast10.has(last10)) {
                 seenLast10.add(last10);
@@ -84,13 +84,13 @@ const SingleLeadDetail = ({ lead, onBack }) => {
     };
     const allPhones = getPhones(leadData);
     const phone = allPhones.length > 0 ? allPhones.join(', ') : 'N/A';
-    
+
     // Filter out junk values (e.g., "no", "false", "yes", "none", "null")
     const junkWebsites = ['no', 'n', 'false', 'none', 'null', 'undefined', 'n/a', 'na', 'yes', 'y'];
     // Website Extraction with junk value filtering
     const rawWebsite = getValidStr(leadData, ['website', 'Website', 'website_url'], null);
-    const website = (rawWebsite && typeof rawWebsite === 'string' && !junkWebsites.includes(rawWebsite.toLowerCase().trim()) && rawWebsite.length >= 4) 
-        ? rawWebsite 
+    const website = (rawWebsite && typeof rawWebsite === 'string' && !junkWebsites.includes(rawWebsite.toLowerCase().trim()) && rawWebsite.length >= 4)
+        ? rawWebsite
         : null;
 
     console.log("📊 [SingleLeadDetail] Extracted data:", {

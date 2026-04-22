@@ -30,22 +30,46 @@ const ContactRow = ({
             contact.mobile || contact.MobileNumber || contact.phone
         );
 
-        const emailRaw = deepGet(contact, ['email', 'Email', 'email_address', 'email_addresses', 'emails']) ||
-            contact.email || contact.Email || contact.emails;
+        const EMAIL_FIELDS = ['email', 'Email', 'email_address', 'email_addresses', 'emails', 'email_enrichment', 'business_emails'];
+        const emailRaw = deepGet(contact, EMAIL_FIELDS) ||
+            contact.email || contact.Email || contact.emails || contact.email_enrichment || contact.business_emails ||
+            contact.poi_details?.business_emails || contact.poi_details?.email;
 
         let emailsList = [];
-        if (Array.isArray(emailRaw)) emailsList = emailRaw.flatMap(e => typeof e === 'string' ? e.split(',').map(x => x.trim()) : []).filter(Boolean);
-        else if (typeof emailRaw === 'object' && emailRaw !== null) emailsList = Object.values(emailRaw).filter(e => typeof e === 'string' && e.trim());
-        else if (typeof emailRaw === 'string') emailsList = emailRaw.split(',').map(e => e.trim()).filter(Boolean);
-        const primaryEmail = emailsList.length > 0 ? emailsList[0] : 'N/A';
+        if (Array.isArray(emailRaw)) {
+            emailsList = emailRaw.flatMap(e => typeof e === 'string' ? e.split(',').map(x => x.trim()) : []).filter(Boolean);
+        } else if (typeof emailRaw === 'string') {
+            emailsList = emailRaw.split(',').map(e => e.trim()).filter(e => e && e.toLowerCase() !== 'n/a' && e.toLowerCase() !== 'not found' && e.toLowerCase() !== 'null');
+        } else if (typeof emailRaw === 'object' && emailRaw !== null) {
+            emailsList = Object.values(emailRaw).filter(e => typeof e === 'string' && e.trim());
+        }
 
-        const websiteRaw = deepGet(contact, ['website', 'Website', 'website_url', 'url', 'domain', 'web', 'site_url']) ||
-            contact.website || contact.Website;
-        const websiteStr = extractStr(websiteRaw, null);
+        // --- WEBSITES SCANNER (Skip booleans/junk) ---
+        const WEBSITE_FIELDS = ['website', 'Website', 'website_url', 'url', 'domain', 'web', 'site_url'];
+        const isUrl = (val) => typeof val === 'string' && val.includes('.') && val.length > 5 && !['yes', 'no', 'true', 'false', 'unknown'].includes(val.toLowerCase().trim());
+        
+        let websiteRaw = deepGet(contact, WEBSITE_FIELDS);
+        
+        // If the found value is a boolean or junk string, keep looking deep or fallback to poi_details
+        if (!isUrl(websiteRaw)) {
+            websiteRaw = contact.poi_details?.website || contact.poi_details?.url || contact.business_information?.website || null;
+        }
+        
+        const websiteStr = isUrl(websiteRaw) ? websiteRaw : null;
 
-        const ratingRaw = deepGet(contact, ['rating', 'Rating', 'ratting', 'google_rating', 'star_rating', 'review_rating', 'avg_rating', 'score']) ||
-            contact.rating || contact.Rating || contact.ratting;
-        const ratingVal = extractStr(ratingRaw, '0');
+        // --- RATINGS SCANNER (Prioritize Deep Data) ---
+        const RATING_FIELDS = ['rating', 'Rating', 'ratting', 'google_rating', 'star_rating', 'review_rating', 'avg_rating', 'score'];
+        
+        // Prioritize poi_details/enriched data for the REAL numerical rating
+        let ratingRaw = contact.poi_details?.rating || contact.poi_details?.Rating || 
+                        deepGet(contact.ai_enrichment, RATING_FIELDS) ||
+                        deepGet(contact, RATING_FIELDS);
+        
+        // Special check for junk/boolean ratings (skip flags like 'true' or 'yes')
+        if (ratingRaw === true || ratingRaw === 'yes' || ratingRaw === 'true') ratingRaw = null;
+        
+        const ratingValStr = extractStr(ratingRaw || '0', '0');
+        const ratingVal = parseFloat(ratingValStr) || 0;
 
         const extractedSocials = scanSocials(contact);
 
@@ -69,11 +93,22 @@ const ContactRow = ({
                     </div>
                 </td>
                 <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                    <div className="space-y-1.5">
-                        <div className="flex items-center gap-2 text-sm font-bold text-gray-600">
+                    <div className="space-y-1.5 font-bold">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
                             <Phone size={12} className="text-gray-400 shrink-0" />
                             <span className="truncate max-w-[150px]">{phoneStr}</span>
                         </div>
+                        {emailsList.length > 0 ? emailsList.map((email, i) => (
+                            <div key={i} className="flex items-center gap-2 text-[10px] text-gray-500 hover:text-primary transition-colors truncate max-w-[150px]">
+                                <Mail size={12} className="text-gray-400 shrink-0" />
+                                {email}
+                            </div>
+                        )) : (
+                            <div className="flex items-center gap-2 text-[10px] text-gray-300 italic">
+                                <Mail size={12} className="text-gray-400 shrink-0" />
+                                N/A
+                            </div>
+                        )}
                     </div>
                 </td>
                 <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
@@ -167,9 +202,24 @@ const ContactRow = ({
                 </span>
             </td>
             <td className="px-6 py-4">
-                <span className="text-sm font-bold text-gray-500 hover:text-primary transition-colors cursor-pointer">
-                    {contact.email || contact.Email || 'N/A'}
-                </span>
+                <div className="flex flex-col gap-1.5 min-w-[120px]">
+                    {(() => {
+                        const emailRaw = contact.email || contact.Email;
+                        let emails = [];
+                        if (Array.isArray(emailRaw)) emails = emailRaw;
+                        else if (typeof emailRaw === 'string') emails = emailRaw.split(',').map(e => e.trim()).filter(e => e && e.toLowerCase() !== 'n/a');
+                        
+                        if (emails.length > 0) {
+                            return emails.map((email, i) => (
+                                <div key={i} className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-primary transition-colors truncate max-w-[150px]">
+                                    <Mail size={12} className="text-gray-400 shrink-0" />
+                                    {email}
+                                </div>
+                            ));
+                        }
+                        return <span className="text-sm font-bold text-gray-300 italic">N/A</span>;
+                    })()}
+                </div>
             </td>
             <td className="px-6 py-4">
                 {contact.website || contact.Website || contact.website_url ? (

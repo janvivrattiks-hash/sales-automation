@@ -26,15 +26,32 @@ const EnrichedRow = ({ lead, index, viewingId, onViewContact, onDelete }) => {
                 </div>
             </td>
             <td className="px-6 py-4">
-                <div className="space-y-1.5">
-                    <div className="flex items-center gap-2 text-[11px] font-bold text-gray-700 bg-gray-50/50 px-2 py-1 rounded-md border border-gray-100/50 w-fit">
-                        <Phone size={10} className="text-primary/60" />
+                <div className="space-y-1.5 font-bold">
+                    <div className="flex items-center gap-2 text-[11px] text-gray-700 bg-gray-50/50 px-2 py-1 rounded-md border border-gray-100/50 w-fit">
+                        <Phone size={10} className="text-primary/60 shrink-0" />
                         {lead.phone || lead.MobileNumber || 'N/A'}
                     </div>
-                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500 hover:text-primary transition-colors truncate max-w-[150px]">
-                        <Mail size={10} className="text-gray-300" />
-                        {lead.email || lead.Email || 'No email'}
-                    </div>
+                    {(() => {
+                        const emailRaw = lead.email || lead.Email;
+                        let emails = [];
+                        if (Array.isArray(emailRaw)) emails = emailRaw;
+                        else if (typeof emailRaw === 'string') emails = emailRaw.split(',').map(e => e.trim()).filter(e => e && e.toLowerCase() !== 'n/a');
+                        
+                        if (emails.length > 0) {
+                            return emails.map((email, i) => (
+                                <div key={i} className="flex items-center gap-2 text-[10px] text-gray-500 hover:text-primary transition-colors truncate max-w-[150px]">
+                                    <Mail size={10} className="text-gray-300 shrink-0" />
+                                    {email}
+                                </div>
+                            ));
+                        }
+                        return (
+                            <div className="flex items-center gap-2 text-[10px] text-gray-400 italic">
+                                <Mail size={10} className="text-gray-200 shrink-0" />
+                                No email
+                            </div>
+                        );
+                    })()}
                 </div>
             </td>
             <td className="px-6 py-4">

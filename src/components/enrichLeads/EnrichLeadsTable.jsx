@@ -13,6 +13,8 @@ const EnrichLeadsTable = ({
     currentPage,
     itemsPerPage,
     onPageChange,
+    onViewLead,
+    processingLeadId,
     navigate,
     queryValue,
     cityValue,
@@ -60,7 +62,8 @@ const EnrichLeadsTable = ({
                                     index={index}
                                     isSelected={selectedLeads.includes(lead.id || lead.MobileNumber)}
                                     onToggleSelect={onToggleSelect}
-                                    navigate={navigate}
+                                    onViewLead={onViewLead}
+                                    processingLeadId={processingLeadId}
                                     queryValue={queryValue}
                                     cityValue={cityValue}
                                     areaValue={areaValue}

@@ -53,6 +53,22 @@ const FinalEnrichedLeads = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
 
+    // Audience Save Additions
+    const [saveMode, setSaveMode] = useState('new');
+    const [selectedAudienceId, setSelectedAudienceId] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+    const [audiences, setAudiences] = useState([]);
+
+    useEffect(() => {
+        if (adminToken) {
+            Api.getAudiences(adminToken).then(res => {
+                if (res) {
+                    setAudiences(Array.isArray(res) ? res : (res.data || res.results || []));
+                }
+            }).catch(err => console.error("Error fetching audiences:", err));
+        }
+    }, [adminToken]);
+
     useEffect(() => {
         window.scrollTo(0, 0);
         const timer = setTimeout(() => window.scrollTo(0, 0), 10);
@@ -151,15 +167,18 @@ const FinalEnrichedLeads = () => {
     useEffect(() => {
         const historyResultsLength = location.state?.results?.length || 0;
         const historyInProgressCount = location.state?.inProgressCount ?? -1;
+        const historyPage = location.state?.currentPage;
 
-        // Sync local state to history if results or progress count changed
+        // Sync local state to history if results, progress count, or page changed
         const needsUpdate = (leadsData.length !== historyResultsLength) || 
-                            (inProgressCount !== historyInProgressCount);
+                            (inProgressCount !== historyInProgressCount) ||
+                            (currentPage !== historyPage);
 
         if (needsUpdate) {
             console.log("🔄 [FinalEnrichedLeads] Syncing progress to history state:", { 
                 results: leadsData.length, 
-                inProgress: inProgressCount 
+                inProgress: inProgressCount,
+                page: currentPage
             });
             navigate(location.pathname, {
                 replace: true,
@@ -167,11 +186,12 @@ const FinalEnrichedLeads = () => {
                     ...location.state,
                     leadsToEnrich: inProgressCount === 0 ? [] : (location.state?.leadsToEnrich || []),
                     results: leadsData,
-                    inProgressCount: inProgressCount
+                    inProgressCount: inProgressCount,
+                    currentPage: currentPage
                 }
             });
         }
-    }, [leadsData, inProgressCount, location.pathname, location.state, navigate]);
+    }, [leadsData, inProgressCount, currentPage, location.pathname, location.state, navigate]);
 
     // ── Multi-tier De-duplication ─────────────────────────────────────────────
     const uniqueLeads = [];
@@ -238,24 +258,53 @@ const FinalEnrichedLeads = () => {
             return bizId;
         }).filter(Boolean);
         
-        const payload = {
-            audiance_name: audienceData.audiance_name,
-            discription: audienceData.discription,
-            icp: audienceData.icp,
-            tag: uiTags.join(', '),
-            business_ids: ids
-        };
+        if (ids.length === 0) {
+            toast.error("No contacts available to save.");
+            return;
+        }
+
+        setIsSaving(true);
         try {
-            const response = await Api.saveAudience(payload, adminToken);
-            console.log("Audience saved successfully with IDs:", ids.length);
-            if (response) {
-                setIsModalOpen(false);
-                setAudienceData({ audiance_name: '', discription: '', icp: '', tag: '' });
-                setUiTags(['High Priority']);
-                navigate('/contacts');
+            if (saveMode === 'existing') {
+                if (!selectedAudienceId) {
+                    toast.error("Please select an existing audience.");
+                    setIsSaving(false);
+                    return;
+                }
+                const response = await Api.addLeadsToExistingAudience(selectedAudienceId, ids, adminToken);
+                if (response) {
+                    setIsModalOpen(false);
+                    setSaveMode('new');
+                    setSelectedAudienceId('');
+                    navigate('/audience-list');
+                }
+            } else {
+                if (!audienceData.audiance_name) {
+                    toast.error("Audience name is required.");
+                    setIsSaving(false);
+                    return;
+                }
+                const payload = {
+                    audiance_name: audienceData.audiance_name,
+                    discription: audienceData.discription,
+                    icp: audienceData.icp,
+                    tag: uiTags.join(', '),
+                    business_ids: ids
+                };
+                const response = await Api.saveAudience(payload, adminToken);
+                console.log("Audience saved successfully with IDs:", ids.length);
+                if (response) {
+                    setIsModalOpen(false);
+                    setAudienceData({ audiance_name: '', discription: '', icp: '', tag: '' });
+                    setUiTags(['High Priority']);
+                    navigate('/audience-list');
+                }
             }
         } catch (error) {
             console.error('Error saving audience:', error);
+            toast.error("Failed to save audience");
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -336,6 +385,13 @@ const FinalEnrichedLeads = () => {
                 uiTags={uiTags}
                 setUiTags={setUiTags}
                 onSave={handleSaveAudience}
+                audiences={audiences}
+                saveMode={saveMode}
+                setSaveMode={setSaveMode}
+                selectedAudienceId={selectedAudienceId}
+                setSelectedAudienceId={setSelectedAudienceId}
+                isSaving={isSaving}
+                leadsCount={filteredLeads.length}
             />
 
             <DeleteConfirmModal
